@@ -17,6 +17,7 @@ import GetReportSettingValueByName from "@/components/utils/GetReportSettingValu
 import { Report } from "Base/report";
 import { Catelogue } from "Base/catelogue";
 import useApi from "@/components/utils/useApi";
+import BASE_URL from "Base/api";
 
 const style = {
   position: "absolute",
@@ -40,12 +41,20 @@ export default function SalesSummaryReport({ docName, reportName }) {
   const [customerId, setCustomerId] = useState(0);
   const [items, setItems] = useState([]);
   const [itemId, setItemId] = useState(0);
+  const [categories, setCategories] = useState([]);
+  const [categoryId, setCategoryId] = useState(0);
+  const [subCategories, setSubCategories] = useState([]);
+  const [subCategoryId, setSubCategoryId] = useState(0);
+  const [suppliers, setSuppliers] = useState([]);
+  const [supplierId, setSupplierId] = useState(0);
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
 
   const { data: customerList } = useApi("/Customer/GetAllCustomer");
   const { data: itemList } = useApi("/Items/GetAllItems");
+  const { data: supplierList } = useApi("/Supplier/GetAllSupplier");
+  const { data: categoryList } = useApi("/Category/GetAllCategory");
 
   useEffect(() => {
     if (customerList) {
@@ -54,10 +63,66 @@ export default function SalesSummaryReport({ docName, reportName }) {
     if (itemList) {
       setItems(itemList);
     }
-  }, [customerList, itemList]);
+    if (supplierList) {
+      setSuppliers(supplierList);
+    }
+    if (categoryList) {
+      setCategories(categoryList);
+    }
+  }, [customerList, itemList, supplierList, categoryList]);
 
   const isFormValid = fromDate && toDate;
 
+  const handleGetSupplierItems = async (id) => {
+    setItemId(0);
+    handleGetFilteredItems(id, categoryId, subCategoryId);
+  }
+
+  const handleGetSubCategories = async (id) => {
+    setItemId(0);
+    setSubCategoryId(0);
+    handleGetFilteredItems(supplierId, id, subCategoryId);
+    try {
+      const token = localStorage.getItem("token");
+      const query = `${BASE_URL}/SubCategory/GetAllSubCategoriesByCategoryId?categoryId=${id}`;
+      const response = await fetch(query, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch items");
+
+      const data = await response.json();
+      setSubCategories(data.result);
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  }
+
+  const handleGetFilteredItems = async (supplier, category, subCategory) => {
+    setItemId(0);
+    try {
+      const token = localStorage.getItem("token");
+      const query = `${BASE_URL}/Items/GetFilteredItems?supplier=${supplier}&category=${category}&subCategory=${subCategory}`;
+      const response = await fetch(query, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch items");
+
+      const data = await response.json();
+      setItems(data.result);
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  }
   return (
     <>
       <Tooltip title="View" placement="top">
@@ -80,7 +145,7 @@ export default function SalesSummaryReport({ docName, reportName }) {
                   Sales Summary Report
                 </Typography>
               </Grid>
-              <Grid item xs={12}>
+              <Grid item xs={12} lg={6}>
                 <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
                   From
                 </Typography>
@@ -92,7 +157,7 @@ export default function SalesSummaryReport({ docName, reportName }) {
                   onChange={(e) => setFromDate(e.target.value)}
                 />
               </Grid>
-              <Grid item xs={12}>
+              <Grid item xs={12} lg={6}>
                 <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
                   To
                 </Typography>
@@ -118,6 +183,66 @@ export default function SalesSummaryReport({ docName, reportName }) {
                   {customers.length === 0 ? <MenuItem value="">No Customers Available</MenuItem>
                     : (customers.map((customer) => (
                       <MenuItem key={customer.id} value={customer.id}>{customer.firstName} {customer.lastName}</MenuItem>
+                    )))}
+                </Select>
+              </Grid>
+              <Grid item xs={12}>
+                <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
+                  Select Supplier
+                </Typography>
+                <Select
+                  fullWidth
+                  size="small"
+                  value={supplierId}
+                  onChange={(e) => {
+                    setSupplierId(e.target.value);
+                    handleGetSupplierItems(e.target.value);
+                  }}
+                >
+                  <MenuItem value={0}>All</MenuItem>
+                  {suppliers.length === 0 ? <MenuItem disabled value="">No Suppliers Available</MenuItem>
+                    : (suppliers.map((supplier) => (
+                      <MenuItem key={supplier.id} value={supplier.id}>{supplier.name}</MenuItem>
+                    )))}
+                </Select>
+              </Grid>
+              <Grid item xs={12} lg={6}>
+                <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
+                  Select Category
+                </Typography>
+                <Select
+                  fullWidth
+                  size="small"
+                  value={categoryId}
+                  onChange={(e) => {
+                    setCategoryId(e.target.value);
+                    handleGetSubCategories(e.target.value);
+                  }}
+                >
+                  <MenuItem value={0}>All</MenuItem>
+                  {categories.length === 0 ? <MenuItem disabled value="">No Categories Available</MenuItem>
+                    : (categories.map((category) => (
+                      <MenuItem key={category.id} value={category.id}>{category.name}</MenuItem>
+                    )))}
+                </Select>
+              </Grid>
+              <Grid item xs={12} lg={6}>
+                <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
+                  Select Sub Category
+                </Typography>
+                <Select
+                  fullWidth
+                  size="small"
+                  value={subCategoryId}
+                  onChange={(e) => {
+                    setSubCategoryId(e.target.value);
+                    handleGetFilteredItems(supplierId, categoryId, e.target.value);
+                  }}
+                >
+                  <MenuItem value={0}>All</MenuItem>
+                  {subCategories.length === 0 ? <MenuItem disabled value="">No Sub Categories Available</MenuItem>
+                    : (subCategories.map((category) => (
+                      <MenuItem key={category.id} value={category.id}>{category.name}</MenuItem>
                     )))}
                 </Select>
               </Grid>

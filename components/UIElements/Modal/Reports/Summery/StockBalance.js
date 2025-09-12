@@ -32,51 +32,46 @@ const style = {
   p: 2,
 };
 
-export default function StockBalance({ docName,reportName }) {
+export default function StockBalance({ docName, reportName }) {
   const warehouseId = localStorage.getItem("warehouse");
   const name = localStorage.getItem("name");
   const [open, setOpen] = useState(false);
-  const [isSelected, setIsSelected] = useState(true);
   const [selectedItem, setSelectedItem] = useState({});
   const [suppliers, setSuppliers] = useState([]);
   const [supplierId, setSupplierId] = useState(0);
   const [items, setItems] = useState([]);
-  const [productId, setProductId] = useState();
+  const [itemId, setItemId] = useState(0);
   const { data: StockBalanceReport } = GetReportSettingValueByName(reportName);
-  const searchRef = useRef(null);
+  const [categories, setCategories] = useState([]);
+  const [categoryId, setCategoryId] = useState(0);
+  const [subCategories, setSubCategories] = useState([]);
+  const [subCategoryId, setSubCategoryId] = useState(0);
+
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => {
     setOpen(false);
-    setSelectedItem({});
-    setIsSelected(true);
+    setItemId(0);
     setSupplierId(0)
   };
-
-  const handleCheckAll = (bool) => {
-    setSelectedItem({});
-    if (bool) {
-      setIsSelected(bool);
-    }
-
-  };
-
-  const handleSelectItem = (item) => {
-    setSelectedItem(item);
-    setIsSelected(false);
-  }
 
   const {
     data: supplierList,
     loading: Loading,
     error: Error,
   } = useApi("/Supplier/GetAllSupplier");
+  const { data: categoryList } = useApi("/Category/GetAllCategory");
 
   const handleGetSupplierItems = async (id) => {
-    setSelectedItem({});
+    setItemId(0);
+    handleGetFilteredItems(id, categoryId, subCategoryId);
+  }
+
+  const handleGetFilteredItems = async (supplier, category, subCategory) => {
+    setItemId(0);
     try {
       const token = localStorage.getItem("token");
-      const query = `${BASE_URL}/Items/GetAllItemsBySupplierId?supplierId=${id}`;
+      const query = `${BASE_URL}/Items/GetFilteredItems?supplier=${supplier}&category=${category}&subCategory=${subCategory}`;
       const response = await fetch(query, {
         method: "GET",
         headers: {
@@ -94,11 +89,38 @@ export default function StockBalance({ docName,reportName }) {
     }
   }
 
+  const handleGetSubCategories = async (id) => {
+    setItemId(0);
+    setSubCategoryId(0);
+    handleGetFilteredItems(supplierId, id, subCategoryId);
+    try {
+      const token = localStorage.getItem("token");
+      const query = `${BASE_URL}/SubCategory/GetAllSubCategoriesByCategoryId?categoryId=${id}`;
+      const response = await fetch(query, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch items");
+
+      const data = await response.json();
+      setSubCategories(data.result);
+    } catch (error) {
+      console.error("Error:", error);
+    }
+  }
+
   useEffect(() => {
     if (supplierList) {
       setSuppliers(supplierList);
     }
-  }, [supplierList]);
+    if (categoryList) {
+      setCategories(categoryList);
+    }
+  }, [categoryList]);
 
   return (
     <>
@@ -142,61 +164,81 @@ export default function StockBalance({ docName,reportName }) {
                     )))}
                 </Select>
               </Grid>
-              <Grid item xs={12} display="flex" justifyContent="space-between" alignItems="center">
+              <Grid item xs={12} lg={6}>
                 <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
-                  Select Product
+                  Select Category
                 </Typography>
-                <FormControlLabel control={<Checkbox checked={isSelected} onChange={(e) => handleCheckAll(e.target.checked)} />} label="All" />
+                <Select
+                  fullWidth
+                  size="small"
+                  value={categoryId}
+                  onChange={(e) => {
+                    setCategoryId(e.target.value);
+                    handleGetSubCategories(e.target.value);
+                  }}
+                >
+                  <MenuItem value={0}>All</MenuItem>
+                  {categories.length === 0 ? <MenuItem disabled value="">No Categories Available</MenuItem>
+                    : (categories.map((category) => (
+                      <MenuItem key={category.id} value={category.id}>{category.name}</MenuItem>
+                    )))}
+                </Select>
+              </Grid>
+              <Grid item xs={12} lg={6}>
+                <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
+                  Select Sub Category
+                </Typography>
+                <Select
+                  fullWidth
+                  size="small"
+                  value={subCategoryId}
+                  onChange={(e) => {
+                    setSubCategoryId(e.target.value);
+                    handleGetFilteredItems(supplierId, categoryId, e.target.value);
+                  }}
+                >
+                  <MenuItem value={0}>All</MenuItem>
+                  {subCategories.length === 0 ? <MenuItem disabled value="">No Sub Categories Available</MenuItem>
+                    : (subCategories.map((category) => (
+                      <MenuItem key={category.id} value={category.id}>{category.name}</MenuItem>
+                    )))}
+                </Select>
               </Grid>
               <Grid item xs={12}>
-                {supplierId != 0 ?
-                  <Select
-                    fullWidth
-                    size="small"
-                    value={productId}
-                    onChange={(e) => {
-                      setProductId(e.target.value);
-                      const selectedItem = items.find((item) => item.id === e.target.value);
-                      handleSelectItem(selectedItem);
-                    }}
-                  >
-                    {items.length === 0 ? <MenuItem value="">No Items Available</MenuItem>
-                      : (items.map((item) => (
-                        <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>
-                      )))}
-                  </Select> : <SearchItemByName
-                    ref={searchRef}
-                    label="Search"
-                    placeholder="Search Items by name"
-                    fetchUrl={supplierId != 0 ? `${BASE_URL}/Items/GetAllItemsBySupplierIdAndName?supplierId=${supplierId}` : `${BASE_URL}/Items/GetAllItemsWithoutZeroQty`}
-                    onSelect={(item) => {
-                      handleSelectItem(item);
-                    }}
-                  />}
-              </Grid>
-              <Grid item xs={12}>
-                <Typography>Selected Item :</Typography>
-                {Object.keys(selectedItem).length > 0 ? (
-                  <>
-                    <Typography variant="h6">
-                      {selectedItem.name} {selectedItem.uomName} {selectedItem.categoryName} {selectedItem.subCategoryName}
-                    </Typography>
-                    {selectedItem.supplierName && (
-                      <Typography>Supplier: {selectedItem.supplierName}</Typography>
-                    )}
-                  </>
-                ) : <Typography variant="h6">All Items</Typography>}
+                <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
+                  Select Item
+                </Typography>
+                <Select
+                  fullWidth
+                  size="small"
+                  value={itemId}
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    const item = items.find((x) => x.id === selectedId);
 
+                    setItemId(selectedId);
+                    if (item) {
+                      setCategoryId(item.categoryId);
+                      setSubCategoryId(item.subCategoryId);
+                    }
+                  }}
+                >
+                  <MenuItem value={0}>All</MenuItem>
+                  {items.length === 0 ? <MenuItem value="">No Items Available</MenuItem>
+                    : (items.map((item) => (
+                      <MenuItem key={item.id} value={item.id}>{item.name}</MenuItem>
+                    )))}
+                </Select>
               </Grid>
               <Grid item xs={12} display="flex" justifyContent="space-between" mt={2}>
                 <Button onClick={handleClose} variant="contained" color="error">
                   Close
                 </Button>
-                <a href={`${Report}/${docName}?InitialCatalog=${Catelogue}&reportName=${StockBalanceReport}&supplierId=${supplierId != 0 ? supplierId :selectedItem.supplier || 0}&categoryId=${selectedItem.categoryId || 0}&subCategoryid=${selectedItem.subCategoryId || 0}&productId=${selectedItem.id || 0}&warehouseId=${warehouseId}&currentUser=${name}`} target="_blank">
-                    <Button variant="contained" aria-label="print" size="small">
-                      Submit
-                    </Button>
-                  </a>
+                <a href={`${Report}/${docName}?InitialCatalog=${Catelogue}&reportName=${StockBalanceReport}&supplierId=${supplierId != 0 ? supplierId : selectedItem.supplier || 0}&categoryId=${categoryId}&subCategoryid=${subCategoryId}&productId=${itemId}&warehouseId=${warehouseId}&currentUser=${name}`} target="_blank">
+                  <Button variant="contained" aria-label="print" size="small">
+                    Submit
+                  </Button>
+                </a>
               </Grid>
             </Grid>
           </Box>
