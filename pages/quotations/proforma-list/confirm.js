@@ -1,5 +1,5 @@
-import React from "react";
-import { Grid, Typography } from "@mui/material";
+import React, { useState } from "react";
+import { Grid, MenuItem, Select, Typography } from "@mui/material";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Modal from "@mui/material/Modal";
@@ -22,11 +22,16 @@ export default function ConfirmInovoiceById({ id, fetchItems }) {
   const [open, setOpen] = React.useState(false);
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
+  const [paymentType, setPaymentType] = useState(null);
 
   const handleSubmit = () => {
+    if(paymentType == null){
+      toast.warning("Please Select Payment Method");
+      return;
+    }
     const token = localStorage.getItem("token");
     fetch(
-      `${BASE_URL}/Inquiry/ConfirmProformaInvoice?invoiceId=${id}`,
+      `${BASE_URL}/Inquiry/ConfirmProformaInvoice?invoiceId=${id}&paymentType=${paymentType}`,
       {
         method: "POST",
         headers: {
@@ -74,6 +79,18 @@ export default function ConfirmInovoiceById({ id, fetchItems }) {
                 >
                   Are you sure you want to confirm this ?
                 </Typography>
+              </Grid>
+              <Grid item xs={12} mb={3}>
+                <Box mt={1}>
+                  <Typography component="label">Payment Method</Typography>
+                  <Select value={paymentType} onChange={(e) => setPaymentType(e.target.value)} fullWidth size="small">
+                    <MenuItem value={1}>Cash</MenuItem>
+                    <MenuItem value={2}>Card</MenuItem>
+                    <MenuItem value={3}>Cash & Card</MenuItem>
+                    <MenuItem value={4}>Bank Transfer</MenuItem>
+                    <MenuItem value={5}>Cheque</MenuItem>
+                  </Select>
+                </Box>
               </Grid>
             </Grid>
           </Box>

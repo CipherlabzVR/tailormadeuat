@@ -249,6 +249,7 @@ const ReceiptCreate = () => {
     };
 
     try {
+      setIsDisable(true);
       setIssubmitting(true);
       const response = await fetch(`${BASE_URL}/Receipt/CreateReceipt`, {
         method: "POST",
@@ -262,8 +263,7 @@ const ReceiptCreate = () => {
       if (response.ok) {
         const jsonResponse = await response.json();
 
-        if (jsonResponse.message != "") {
-          setIsDisable(true);
+        if (jsonResponse.message != "") {          
           toast.success(jsonResponse.message);
           setTimeout(() => {
             window.location.href = "/sales/receipt";
@@ -279,6 +279,7 @@ const ReceiptCreate = () => {
       console.error("Error:", error);
     } finally {
       setIssubmitting(false);
+      
     }
   };
 

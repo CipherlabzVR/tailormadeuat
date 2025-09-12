@@ -195,4 +195,5 @@ export default function ViewStockDetails({ warehouse, product, fetchStock, pageS
             </Modal>
         </>
     );
+	
 }

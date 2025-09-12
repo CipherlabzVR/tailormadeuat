@@ -57,20 +57,20 @@ export default function PrintQuotation({ quotationDet, fetchItems }) {
   const [selectedOption, setSelectedOption] = useState("");
   const [url, setUrl] = useState("");
   const currentDate = new Date().toISOString().split("T")[0];
-  const [selectedDate, setSelectedDate] = useState();
+  const [selectedDate, setSelectedDate] = useState(currentDate);
   const [validDate, setValidDate] = useState("");
   const [termDays, setTermDays] = useState("");
   const [handoverDate, setHandoverDate] = useState();
-  const [selectedStartDate, setSelectedStartDate] = useState();
+  const [selectedStartDate, setSelectedStartDate] = useState(currentDate);
   const [percentage, setPercentage] = useState();
 
   const handleClose = () => {
     setOpen(false);
-    setSelectedDate();
+    setSelectedDate(currentDate);
     setValidDate("");
     setTermDays("")
     setHandoverDate();
-    setSelectedStartDate();
+    setSelectedStartDate(currentDate);
     setPercentage();
     setSelectedOption("");
     fetchItems();
