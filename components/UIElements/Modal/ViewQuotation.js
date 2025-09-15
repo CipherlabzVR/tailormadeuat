@@ -278,7 +278,7 @@ export default function ViewQuotation({
       SellingPrice: quotDetails.apprvedSellingPrice,
       UnitCost: quotDetails.apprvedUnitCost,
       TotalCost: quotDetails.apprvedTotalCost,
-      Quantity: quotDetails.apprvedTotalUnits,
+      Quantity: quotDetails.apprvedTotalUnits || quotDetails.totalUnits,
       Revenue: quotDetails.apprvedRevanue,
       TotalProfit: quotDetails.apprvedTotalProfit,
       QuotationId: quotDetails.id,
@@ -465,7 +465,7 @@ export default function ViewQuotation({
             <View style={{ flexGrow: 1 }}>
               <Text style={styles.tablecell}>QTY</Text>
               <Text style={styles.tablecell2}>
-                {quotDetails.apprvedTotalUnits}
+                {quotDetails.apprvedTotalUnits || quotDetails.totalUnits}
               </Text>
             </View>
             <View style={{ flexGrow: 1 }}>
