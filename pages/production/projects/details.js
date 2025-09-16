@@ -61,7 +61,6 @@ export default function ProjectDetails() {
         throw new Error("Failed to fetch Fabric List");
       }
       const data = await response.json();
-      console.log(data.result);
       setTasks(data.result);
     } catch (error) {
       console.error("Error fetching Fabric List:", error);

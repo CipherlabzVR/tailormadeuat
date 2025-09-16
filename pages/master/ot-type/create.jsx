@@ -29,7 +29,7 @@ const validationSchema = Yup.object({
   Name: Yup.string().trim().required("Name is required"),
 });
 
-export default function CreateDayTypeModal({ fetchItems }) {
+export default function CreateOTTypeModal({ fetchItems }) {
   const [open, setOpen] = useState(false);
   const firstInputRef = useRef(null);
 
@@ -43,7 +43,9 @@ export default function CreateDayTypeModal({ fetchItems }) {
   };
 
   const handleSubmit = async (values) => {
-    fetch(`${BASE_URL}/DayType/CreateDayType`, {
+    console.log(values);
+
+    fetch(`${BASE_URL}/OTType/CreateOTType`, {
       method: "POST",
       body: JSON.stringify(values),
       headers: {
@@ -75,7 +77,7 @@ export default function CreateDayTypeModal({ fetchItems }) {
       <Modal open={open} onClose={() => handleClose()}>
         <Box sx={style}>
           <Formik
-            initialValues={{ Name: "", Description: "", IsLeave: false }}
+            initialValues={{ Name: "", Description: "", IsActive: false }}
             validationSchema={validationSchema}
             onSubmit={handleSubmit}
           >
@@ -91,7 +93,7 @@ export default function CreateDayTypeModal({ fetchItems }) {
                 <Grid container>
                   <Grid item xs={12}>
                     <Typography variant="h5" sx={{ fontWeight: 600, mb: 1 }}>
-                      Create Day Type
+                      Create OT Type
                     </Typography>
                   </Grid>
 
@@ -135,13 +137,13 @@ export default function CreateDayTypeModal({ fetchItems }) {
                         <FormControlLabel
                           control={
                             <Checkbox
-                              checked={values.IsLeave}
+                              checked={values.IsActive}
                               onChange={() =>
-                                setFieldValue("IsLeave", !values.IsLeave)
+                                setFieldValue("IsActive", !values.IsActive)
                               }
                             />
                           }
-                          label="Is Leave"
+                          label="Is Active"
                         />
                       </Grid>
                     </Grid>

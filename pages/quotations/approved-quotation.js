@@ -79,7 +79,6 @@ export default function ApprovedQuotation() {
   }, []);
 
   const navigateToEdit = (quotation) => {
-    console.log(quotation);
     router.push({
       pathname: "/quotations/edit",
       query: { id: quotation ? quotation.inquiryID : "", status: 1, option: quotation ? quotation.optionId : "" },
