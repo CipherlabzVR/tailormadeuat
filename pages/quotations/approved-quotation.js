@@ -151,10 +151,10 @@ export default function ApprovedQuotation() {
                   >
                     <TableCell>{quotation.inqCode}</TableCell>
                     <TableCell>
-                      {quotation.customerDetils ? (
+                      {quotation.customerDetails ? (
                         <>
-                          {quotation.customerDetils.firstName}{" "}
-                          {quotation.customerDetils.lastName}
+                          {quotation.customerDetails.firstName}{" "}
+                          {quotation.customerDetails.lastName}
                         </>
                       ) : (
                         ""

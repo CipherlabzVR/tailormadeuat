@@ -100,30 +100,30 @@ export default function ProjectDetails() {
         <Grid item xs={12} lg={5} px={2}>
           <Box my={2} display="flex" justifyContent="space-between">
             <Typography>Customer Name</Typography>
-            <Typography as="h5">{project?.customerDetils?.title} {project?.customerDetils?.firstName} {project?.customerDetils?.lastName}</Typography>
+            <Typography as="h5">{project?.customerDetails?.title} {project?.customerDetails?.firstName} {project?.customerDetails?.lastName}</Typography>
           </Box>
           <Box my={2} display="flex" justifyContent="space-between">
             <Typography> Customer NIC</Typography>
             <Typography as="h5">
-              {project?.customerDetils?.nic}
+              {project?.customerDetails?.nic}
             </Typography>
           </Box>
           <Box my={2} display="flex" justifyContent="space-between">
             <Typography> Customer Address</Typography>
             <Typography as="h5">
-              {project?.customerDetils?.addressLine1} {project?.customerDetils?.addressLine2} {project?.customerDetils?.addressLine3}
+              {project?.customerDetails?.addressLine1} {project?.customerDetails?.addressLine2} {project?.customerDetails?.addressLine3}
             </Typography>
           </Box>
           <Box my={2} display="flex" justifyContent="space-between">
             <Typography> Company</Typography>
             <Typography as="h5">
-              {project?.customerDetils?.company}
+              {project?.customerDetails?.company}
             </Typography>
           </Box>
           <Box my={2} display="flex" justifyContent="space-between">
             <Typography>Designation</Typography>
             <Typography as="h5">
-              {project?.customerDetils?.designation}
+              {project?.customerDetails?.designation}
             </Typography>
           </Box>
           <Box my={2} display="flex" justifyContent="space-between">
