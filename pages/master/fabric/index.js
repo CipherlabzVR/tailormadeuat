@@ -136,12 +136,12 @@ export default function Fabric() {
                       <TableCell>{item.name}</TableCell>
                       <TableCell>
                         {item.inquiryCategoryFabrics.map((category, index) => (
-                          <span style={{ fontSize: "12px" }} key={index}>{category.inquiryCategoryName}, </span>
+                          <span style={{ fontSize: "12px" }} key={index}>{category.inquiryCategoryName} </span>
                         ))}
                       </TableCell>
                       <TableCell>
                         {item.suppliers.map((supplier, index) => (
-                          <span style={{ fontSize: "12px" }} key={index}>{supplier.supplierName}, </span>
+                          <span style={{ fontSize: "12px" }} key={index}>{supplier.supplierName} </span>
                         ))}
                       </TableCell>
                       <TableCell>

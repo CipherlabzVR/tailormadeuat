@@ -15,7 +15,7 @@ import { Search, StyledInputBase } from "@/styles/main/search-styles";
 import DeleteConfirmationById from "@/components/UIElements/Modal/DeleteConfirmationById";
 import ViewCustomerDialog from "./view";
 import EditCustomerDialog from "./edit";
-import AddCustomerDialog from "./create";
+import AddCustomerDialog from "../customers/create";
 import usePaginatedFetch from "@/components/hooks/usePaginatedFetch";
 import IsPermissionEnabled from "@/components/utils/IsPermissionEnabled";
 import AccessDenied from "@/components/UIElements/Permission/AccessDenied";

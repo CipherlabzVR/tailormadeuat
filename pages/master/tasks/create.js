@@ -24,6 +24,12 @@ const style = {
 const validationSchema = Yup.object().shape({
   Name: Yup.string().required("Name is required"),
   UserType: Yup.string().required("User Type is required"),
+ OrderNumber: Yup.number()
+    .typeError("Order Number must be a number")
+    .required("Order Number is required")
+    .positive("Order Number must be positive")
+    .integer("Order Number must be an integer"),
+  
 });
 
 export default function AddTask({ fetchItems }) {
@@ -217,21 +223,25 @@ export default function AddTask({ fetchItems }) {
                         />
                       </Grid>
                       <Grid item xs={12} mt={1}>
-                        <Typography
-                          sx={{
-                            fontWeight: "500",
-                            fontSize: "14px",
-                            mb: "5px",
-                          }}
-                        >
-                          Order Number
-                        </Typography>
-                        <Field
-                          as={TextField}
-                          fullWidth
-                          name="OrderNumber"
-                          type="number"
-                        />
+                       <Typography
+                        sx={{
+                          fontWeight: "500",
+                          fontSize: "14px",
+                          mb: "5px",
+                        }}
+                      >
+                        Order Number
+                      </Typography>
+
+                      <Field
+                        as={TextField}
+                        fullWidth
+                        name="OrderNumber"
+                        type="number"
+                        error={touched.OrderNumber && Boolean(errors.OrderNumber)}
+                        helperText={touched.OrderNumber && errors.OrderNumber}
+                      />
+
                       </Grid>
                       <Grid item xs={12} mt={1} p={1}>
                         <FormControlLabel

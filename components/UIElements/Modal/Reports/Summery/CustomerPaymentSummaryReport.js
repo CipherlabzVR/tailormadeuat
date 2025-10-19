@@ -40,6 +40,7 @@ export default function CustomerPaymentSummaryReport({ docName, reportName }) {
   const name = localStorage.getItem("name");
   const [customers, setCustomers] = useState([]);
   const [customerId, setCustomerId] = useState(0);
+  const [paymentType, setPaymentType] = useState(0);
   const [invoices, setInvoices] = useState([]);
   const [invoiceId, setInvoiceId] = useState(0);
 
@@ -161,11 +162,29 @@ export default function CustomerPaymentSummaryReport({ docName, reportName }) {
                     )))}
                 </Select>
               </Grid>
+              <Grid item xs={12}>
+                <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
+                  Select Payment Type
+                </Typography>
+                <Select
+                  fullWidth
+                  size="small"
+                  value={paymentType}
+                  onChange={(e) => setPaymentType(e.target.value)}
+                >
+                  <MenuItem value={0}>All</MenuItem>
+                  <MenuItem value={1}>Cash</MenuItem>
+                  <MenuItem value={2}>Card</MenuItem>
+                  <MenuItem value={3}>Cash & Card</MenuItem>
+                  <MenuItem value={4}>Bank Transfer</MenuItem>
+                  <MenuItem value={5}>Cheque</MenuItem>
+                </Select>
+              </Grid>
               <Grid item xs={12} display="flex" justifyContent="space-between" mt={2}>
                 <Button onClick={handleClose} variant="contained" color="error">
                   Close
                 </Button>
-                <a href={`${Report}/${docName}?InitialCatalog=${Catelogue}&reportName=${SalesSummaryReport}&fromDate=${fromDate}&toDate=${toDate}&warehouseId=${warehouseId}&currentUser=${name}&customerId=${customerId}&invoiceId=${invoiceId}`} target="_blank">
+                <a href={`${Report}/${docName}?InitialCatalog=${Catelogue}&reportName=${SalesSummaryReport}&fromDate=${fromDate}&toDate=${toDate}&warehouseId=${warehouseId}&currentUser=${name}&customerId=${customerId}&invoiceId=${invoiceId}&paymentType=${paymentType}`} target="_blank">
                   <Button variant="contained" disabled={!isFormValid} aria-label="print" size="small">
                     Submit
                   </Button>
