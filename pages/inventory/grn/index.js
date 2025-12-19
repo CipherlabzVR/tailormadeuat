@@ -41,7 +41,6 @@ import IsFiscalPeriodAvailable from "@/components/utils/IsFiscalPeriodAvailable"
 const GRN = () => {
   const cId = sessionStorage.getItem("category")
   const { navigate, create, update, remove, print } = IsPermissionEnabled(cId);
-  const { navigate: ponavigate } = IsPermissionEnabled(18);
   const name = localStorage.getItem("name");
   const { data: IsSupplierSalesRef } = IsAppSettingEnabled(
     "IsSupplierSalesRef"
@@ -101,14 +100,21 @@ const GRN = () => {
     fetchGRNList(1, search, size);
   };
 
-  const [activeButton, setActiveButton] = useState("grn");
+  if (!navigate) {
+    return <AccessDenied />;
+  }
 
-  const handleButtonClick = (buttonName) => {
-    setActiveButton(buttonName);
-  };
-
-  const displayContent = (selectedTitle) => {
-    return selectedTitle == "grn" ? (
+  return (
+    <>
+      <ToastContainer />
+      <div className={styles.pageTitle}>
+        <h1>Goods Receive Notes</h1>
+        <ul>
+          <li>
+            <Link href="/inventory/grn">Goods Receive Notes</Link>
+          </li>
+        </ul>
+      </div>
       <Grid
         container
         rowSpacing={1}
@@ -146,6 +152,7 @@ const GRN = () => {
                   <TableCell>#</TableCell>
                   <TableCell>GRN Date</TableCell>
                   <TableCell>GRN No</TableCell>
+                  <TableCell>PO No</TableCell>
                   <TableCell>Reference No</TableCell>
                   <TableCell>Supplier</TableCell>
                   {IsSupplierSalesRef && (
@@ -173,8 +180,11 @@ const GRN = () => {
                     return (
                       <TableRow key={item.id}>
                         <TableCell>{index + 1}</TableCell>
-                        <TableCell>{item.grnDate ? formatDate(item.grnDate) : formatDate(item.createdOn)}</TableCell>
+                        <TableCell>
+                          {item.purchaseOrderNo != null ? item.updatedOn ? formatDate(item.updatedOn) : formatDate(item.createdOn) : item.grnDate ? formatDate(item.grnDate) : formatDate(item.createdOn)}
+                        </TableCell>
                         <TableCell>{item.documentNo}</TableCell>
+                        <TableCell>{item.purchaseOrderNo != null ? item.purchaseOrderNo : "N/A"}</TableCell>
                         <TableCell>{item.referanceNo}</TableCell>
                         <TableCell>{item.supplierName}</TableCell>
                         {IsSupplierSalesRef && (
@@ -221,55 +231,6 @@ const GRN = () => {
           </TableContainer>
         </Grid>
       </Grid>
-    ) : (
-      <PurchaseOrder />
-    );
-  };
-
-  const title =
-    activeButton === "grn" ? "Goods Receive Notes" : "Purchase Orders";
-
-  if (!navigate) {
-    return <AccessDenied />;
-  }
-
-  return (
-    <>
-      <div className={styles.pageTitle}>
-        <h1>{title}</h1>
-        <ul>
-          <li>
-            <Link href="/inventory/grn">{title}</Link>
-          </li>
-        </ul>
-      </div>
-      <Grid
-        container
-        spacing={2}
-        alignItems="center"
-        justifyContent="space-between"
-        mb={2}
-      >
-        <Grid item>
-          <Button
-            variant={activeButton === "grn" ? "contained" : "outlined"}
-            onClick={() => handleButtonClick("grn")}
-            style={{ marginRight: "5px" }}
-          >
-            Goods Received
-          </Button>
-          {ponavigate ? <Button
-            variant={activeButton === "po" ? "contained" : "outlined"}
-            onClick={() => handleButtonClick("po")}
-          >
-            Purchase Order
-          </Button> : ""}
-
-        </Grid>
-      </Grid>
-      <ToastContainer />
-
-      {displayContent(activeButton)}
     </>
   );
 };

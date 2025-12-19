@@ -14,7 +14,7 @@ const SidebarNav = styled("nav")(({ theme }) => ({
   background: "#fff",
   boxShadow: "0px 4px 20px rgba(47, 143, 232, 0.07)",
   width: "300px",
-  padding: "30px 10px",
+  padding: "0 10px",
   height: "100vh",
   display: "flex",
   justifyContent: "center",
@@ -46,19 +46,33 @@ const Sidebar = ({ toogleActive, onGrantedCheck }) => {
   }
 
   const fetchCompanyImage = async () => {
-    const response = await fetch(
-      `${BASE_URL}/Company/GetCompanyLogoByWarehouseId?warehouseId=${warehouse}`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json",
-        },
+    try {
+      if (!warehouse) {
+        return;
       }
-    );
 
-    const data = await response.json();
-    setCompanyLogo(data.logoUrl);
+      const response = await fetch(
+        `${BASE_URL}/Company/GetCompanyLogoByWarehouseId?warehouseId=${warehouse}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch company logo");
+      }
+
+      const data = await response.json();
+      setCompanyLogo(data.logoUrl || "");
+    } catch (error) {
+      console.error("Error fetching company logo:", error);
+      // Keep default logo on error
+      setCompanyLogo("");
+    }
   };
 
   const fetchModulePermissions = async () => {
@@ -89,11 +103,33 @@ const Sidebar = ({ toogleActive, onGrantedCheck }) => {
         };
       });
       const rawItems = getSidebarData(IsGarmentSystem);
+      const userType = localStorage.getItem("type");
+      const isHelpDeskSupport = userType === "14" || userType === 14;
+
       const updatedItems = rawItems.map((menu) => {
         let updatedMenu = { ...menu };
 
         if (updatedMenu.subNav) {
           updatedMenu.subNav = updatedMenu.subNav.map((sub) => {
+            // Check user type restriction (e.g., only HelpDeskSupport can see self dashboard)
+            if (sub.userTypeRestriction) {
+              if (!isHelpDeskSupport) {
+                return {
+                  ...sub,
+                  isAvailable: false,
+                };
+              }
+              // For HelpDeskSupport users, still check permissions
+              const matched = transformed.find(
+                (t) => t.CategoryId === sub.categoryId
+              );
+              return {
+                ...sub,
+                isAvailable: matched ? matched.IsAvailable : false,
+              };
+            }
+
+            // For items without userTypeRestriction, check permissions normally
             const matched = transformed.find(
               (t) => t.CategoryId === sub.categoryId
             );
@@ -155,7 +191,7 @@ const Sidebar = ({ toogleActive, onGrantedCheck }) => {
                 display: "flex",
                 alignItems: "center",
                 height: "100px",
-                justifyContent: {xs:"space-between",lg:"center"},
+                justifyContent: "space-between",
               }}
             >
               <Link
@@ -169,7 +205,7 @@ const Sidebar = ({ toogleActive, onGrantedCheck }) => {
                 {ProjectNo === 1 ? (
                   <>
                     <img
-                      src={companyLogo !== "" ? companyLogo : "/images/logo(1).png"}
+                      src={companyLogo !== "" ? companyLogo : "/images/cbass.png"}
                       alt="Logo"
                       className="black-logo"
                       style={{
@@ -179,7 +215,7 @@ const Sidebar = ({ toogleActive, onGrantedCheck }) => {
                       }}
                     />
                     <img
-                      src={companyLogo !== "" ? companyLogo : "/images/logo(1).png"}
+                      src={companyLogo !== "" ? companyLogo : "/images/cbass.png"}
                       alt="Logo"
                       className="white-logo"
                       style={{
@@ -217,6 +253,7 @@ const Sidebar = ({ toogleActive, onGrantedCheck }) => {
                 )}
               </Link>
 
+              {/* Mobile Close Button */}
               <IconButton
                 onClick={toogleActive}
                 size="small"
@@ -224,6 +261,22 @@ const Sidebar = ({ toogleActive, onGrantedCheck }) => {
                   background: "rgb(253, 237, 237)",
                   display: { lg: "none" },
                 }}
+              >
+                <ClearIcon />
+              </IconButton>
+
+              {/* Desktop Close Button */}
+              <IconButton
+                onClick={toogleActive}
+                size="small"
+                sx={{
+                  background: "rgb(253, 237, 237)",
+                  display: { xs: "none", lg: "flex" },
+                  "&:hover": {
+                    background: "rgb(250, 220, 220)",
+                  },
+                }}
+                aria-label="Close sidebar"
               >
                 <ClearIcon />
               </IconButton>

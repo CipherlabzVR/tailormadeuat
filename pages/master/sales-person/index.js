@@ -16,25 +16,21 @@ import { Search, StyledInputBase } from "@/styles/main/search-styles";
 import AddSalesPerson from "./create";
 import IsAppSettingEnabled from "@/components/utils/IsAppSettingEnabled";
 import EditSalesPerson from "./edit";
-// import ViewViewSalesPersonDialog from "./view";
 import IsPermissionEnabled from "@/components/utils/IsPermissionEnabled";
 import AccessDenied from "@/components/UIElements/Permission/AccessDenied";
-import usePaginatedFetch from "@/components/hooks/usePaginatedFetch"; // adjust import as needed
+import usePaginatedFetch from "@/components/hooks/usePaginatedFetch"; 
+import useApi from "@/components/utils/useApi";
 
-
-
-
-export default function Customers() {
+export default function SalesPerson() { 
   const cId = sessionStorage.getItem("category")
   const { navigate, create, update, remove, print } = IsPermissionEnabled(cId);
-  const [chartOfAccounts, setChartOfAccounts] = useState([]);
-  const [chartOfAccInfo, setChartOfAccInfo] = useState({});
-  //const { data: accountList } = useApi("/ChartOfAccount/GetAll");
-  
- 
+  const { data: supplierList } = useApi("/Supplier/GetAllSupplier");
+  const [suppliers, setSuppliers] = useState([]);
+  const { data: isSupplierSalesRef } = IsAppSettingEnabled("IsSupplierSalesRef");
+  const [supplierInfo, setSupplierInfo] = useState({});
+
   const {
-    
-    data: customerList,
+    data: salesPersonList, 
     totalCount,
     page,
     pageSize,
@@ -42,8 +38,13 @@ export default function Customers() {
     setPage,
     setPageSize,
     setSearch,
-    fetchData: fetchCustomerList,
+    fetchData: fetchSalesPersonList,
   } = usePaginatedFetch("SalesPerson/GetAll");
+
+
+  useEffect(() => {
+    fetchSalesPersonList(page, search, pageSize);
+  }, []); 
 
 
   const controller = "SalesPerson/DeleteSalesPerson";
@@ -51,31 +52,32 @@ export default function Customers() {
   const handleSearchChange = (event) => {
     setSearch(event.target.value);
     setPage(1);
-    fetchCustomerList(1, event.target.value, pageSize);
+    fetchSalesPersonList(1, event.target.value, pageSize); 
   };
 
   const handlePageChange = (event, value) => {
     setPage(value);
-    fetchCustomerList(value, search, pageSize);
+    fetchSalesPersonList(value, search, pageSize); 
   };
 
   const handlePageSizeChange = (event) => {
     const size = event.target.value;
     setPageSize(size);
     setPage(1);
-    fetchCustomerList(1, search, size);
+    fetchSalesPersonList(1, search, size); 
   };
 
-  // useEffect(() => {
-  //     if (accountList) {
-  //       const accMap = accountList.reduce((acc, account) => {
-  //         acc[account.id] = account;
-  //         return acc;
-  //       }, {});
-  //       setChartOfAccInfo(accMap);
-  //       setChartOfAccounts(accountList);
-  //     }
-  //   }, [accountList]);
+  useEffect(() => {
+    if (supplierList) {
+      setSuppliers(supplierList);
+
+      const supplierMap = supplierList.reduce((acc, supplier) => {
+        acc[supplier.id] = supplier;
+        return acc;
+      }, {});
+      setSupplierInfo(supplierMap);
+    }
+  }, [supplierList]);
 
   if (!navigate) {
     return <AccessDenied />;
@@ -85,10 +87,10 @@ export default function Customers() {
     <>
       <ToastContainer />
       <div className={styles.pageTitle}>
-        <h1>Customers</h1>
+        <h1>Sales Person</h1>
         <ul>
           <li>
-            <Link href="/master/customers/">Customers</Link>
+            <Link href="/master/sales-person/">Sales Person</Link>
           </li>
         </ul>
       </div>
@@ -104,7 +106,7 @@ export default function Customers() {
           </Search>
         </Grid>
         <Grid item xs={12} lg={8} mb={1} display="flex" justifyContent="end" order={{ xs: 1, lg: 2 }}>
-          {create ? <AddSalesPerson fetchItems={fetchCustomerList} chartOfAccounts={chartOfAccounts}/> : ""}
+          {create ? <AddSalesPerson fetchItems={fetchSalesPersonList} isSupplierSalesRef={isSupplierSalesRef} suppliers={suppliers} /> : ""} {/* <-- Pass renamed function */}
         </Grid>
         <Grid item xs={12} order={{ xs: 3, lg: 3 }}>
           <TableContainer component={Paper}>
@@ -114,32 +116,31 @@ export default function Customers() {
                   <TableCell>Code</TableCell>
                   <TableCell>Name</TableCell>
                   <TableCell>Mobile Number</TableCell>
-                  <TableCell>remark</TableCell>
-              
+                  {isSupplierSalesRef && (<TableCell> Supplier</TableCell>)}
+                  <TableCell>Remark</TableCell>
                   <TableCell align="right">Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {customerList.length === 0 ? (
+                {salesPersonList.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={6}>
-                      <Typography color="error">No Customers Available</Typography>
+                      <Typography color="error">No Sales Person Available</Typography>
                     </TableCell>
                   </TableRow>
                 ) : (
-                  customerList.map((item, index) => (
+                  salesPersonList.map((item, index) => (
                     <TableRow key={index}>
                       <TableCell>
-                        {[ item?.code].filter(Boolean).join(" ")}
+                        {item?.code}
                       </TableCell>
-                      <TableCell>  {[ item?.name].filter(Boolean).join(" ")}</TableCell>
-                      <TableCell>  {[ item?.mobileNumber].filter(Boolean).join(" ")}</TableCell>
-                      <TableCell>  {[ item?.remark].filter(Boolean).join(" ")}</TableCell>
-
-                      
+                      <TableCell>  {item?.name}</TableCell>
+                      <TableCell>  {item?.mobileNumber}</TableCell>
+                      {isSupplierSalesRef && (<TableCell>  {supplierInfo[item.supplier]?.name || "-"}</TableCell>)}
+                      <TableCell>  {item?.remark}</TableCell>
                       <TableCell align="right">
-                        {update ? <EditSalesPerson fetchItems={fetchCustomerList} item={item} chartOfAccounts={chartOfAccounts}/> : ""}
-                        {remove ? <DeleteConfirmationById id={item.id} controller={controller} fetchItems={fetchCustomerList} /> : ""}
+                        {update ? <EditSalesPerson fetchItems={fetchSalesPersonList} item={item} isSupplierSalesRef={isSupplierSalesRef} suppliers={suppliers} /> : ""} {/* <-- Pass renamed function */}
+                        {remove ? <DeleteConfirmationById id={item.id} controller={controller} fetchItems={fetchSalesPersonList} /> : ""} {/* <-- Pass renamed function */}
                       </TableCell>
                     </TableRow>
                   ))
@@ -168,6 +169,4 @@ export default function Customers() {
       </Grid>
     </>
   );
-
-
-    }
+}

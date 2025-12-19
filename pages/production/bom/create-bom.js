@@ -82,7 +82,8 @@ const CreateBillOfMaterials = () => {
       ...item,
       quantity: "",
       wastage: "",
-      totalCost: item.averagePrice || 0,
+      averagePrice: item.averagePrice != null ? item.averagePrice : "",
+      totalCost: item.averagePrice != null ? (item.averagePrice || 0) : 0,
     };
 
     setAddedRows((prevRows) => {
@@ -96,16 +97,21 @@ const CreateBillOfMaterials = () => {
   const handleChange = (index, value, name) => {
     const updatedRows = [...addedRows];
     const row = updatedRows[index];
-    const oldTotalPrice = row.totalCost;
+    const oldTotalPrice = row.totalCost || 0;
 
-    row[name] = value;
+    // Ensure value is never null - convert to empty string if needed
+    row[name] = value != null ? value : "";
 
     if (name === "quantity") {
-      row.totalCost = parseFloat(row.averagePrice || 0) * parseFloat(value || 0);
+      const avgPrice = parseFloat(row.averagePrice || 0);
+      const qty = parseFloat(value || 0);
+      row.totalCost = avgPrice * qty;
     }
 
     if (name === "averagePrice") {
-      row.totalCost = parseFloat(value || 0) * parseFloat(row.quantity || 0);
+      const avgPrice = parseFloat(value || 0);
+      const qty = parseFloat(row.quantity || 0);
+      row.totalCost = avgPrice * qty;
     }
 
     setAddedRows(updatedRows);
@@ -407,34 +413,49 @@ const CreateBillOfMaterials = () => {
                   </TableHead>
                   <TableBody>
                     {addedRows.length === 0 ? "" :
-                      (addedRows.map((item, index) => (
-                        <TableRow key={index}
-                          sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
-                        >
-                          <TableCell align="right">
-                            <Tooltip title="Delete" placement="top">
-                              <IconButton onClick={() => handleDeleteRow(index)} aria-label="delete" size="small">
-                                <DeleteIcon color="error" fontSize="inherit" />
-                              </IconButton>
-                            </Tooltip>
-                          </TableCell>
-                          <TableCell component="th" scope="row">
-                            {item.name}
-                          </TableCell>
-                          <TableCell>
-                            <TextField size="small" value={item.quantity} onChange={(e) => handleChange(index, e.target.value, "quantity")} />
-                          </TableCell>
-                          <TableCell>
-                            <TextField size="small" value={item.wastage} onChange={(e) => handleChange(index, e.target.value, "wastage")} />
-                          </TableCell>
-                          <TableCell>
-                            <TextField size="small" value={item.averagePrice} onChange={(e) => handleChange(index, e.target.value, "averagePrice")} />
-                          </TableCell>
-                          <TableCell align="right">
-                            {formatCurrency(item.totalCost)}
-                          </TableCell>
-                        </TableRow>
-                      )))}
+                      (addedRows.map((item, index) => {
+                        // Ensure no null values are displayed
+                        const safeItem = {
+                          ...item,
+                          quantity: item.quantity != null ? item.quantity : "",
+                          wastage: item.wastage != null ? item.wastage : "",
+                          averagePrice: item.averagePrice != null && item.averagePrice !== "null" ? String(item.averagePrice) : "",
+                          totalCost: item.totalCost != null ? item.totalCost : 0,
+                          name: item.name || "-"
+                        };
+                        return (
+                          <TableRow key={index}
+                            sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
+                          >
+                            <TableCell align="right">
+                              <Tooltip title="Delete" placement="top">
+                                <IconButton onClick={() => handleDeleteRow(index)} aria-label="delete" size="small">
+                                  <DeleteIcon color="error" fontSize="inherit" />
+                                </IconButton>
+                              </Tooltip>
+                            </TableCell>
+                            <TableCell component="th" scope="row">
+                              {safeItem.name}
+                            </TableCell>
+                            <TableCell>
+                              <TextField size="small" value={safeItem.quantity} onChange={(e) => handleChange(index, e.target.value, "quantity")} />
+                            </TableCell>
+                            <TableCell>
+                              <TextField size="small" value={safeItem.wastage} onChange={(e) => handleChange(index, e.target.value, "wastage")} />
+                            </TableCell>
+                            <TableCell>
+                              <TextField 
+                                size="small" 
+                                value={safeItem.averagePrice} 
+                                onChange={(e) => handleChange(index, e.target.value, "averagePrice")} 
+                              />
+                            </TableCell>
+                            <TableCell align="right">
+                              {formatCurrency(safeItem.totalCost)}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      }))}
 
                   </TableBody>
                   <TableFooter>

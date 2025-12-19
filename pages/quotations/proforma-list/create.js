@@ -194,14 +194,20 @@ const InvoiceCreate = () => {
                 <Grid item xs={8}>
                   <Grid container>
                     <Grid item xs={12} display="flex" justifyContent="space-between" alignItems="center">
-                      <Typography component="label">Search Inquiry</Typography>
+                      <Typography component="label">Search Sent Quotation</Typography>
                     </Grid>
                     <Grid item xs={12} display="flex" justifyContent="space-between" alignItems="center">
                       <SearchQuotationByDocumentNo
                         ref={searchRef}
                         label="Search"
-                        placeholder="Search inquiry by code"
-                        fetchUrl={`${BASE_URL}/Inquiry/GetAllInquiriesByDocumentNo`}
+                        placeholder="Search confirmed sent quotations"
+                        fetchUrl={`${BASE_URL}/Inquiry/GetAllSentQuotationsGroupedByStatus`}
+                        buildParams={(value) => ({
+                          SkipCount: 0,
+                          MaxResultCount: 20,
+                          Search: value && value.trim() !== "" ? value : "null",
+                          status: 2, // QuotationConfirmed
+                        })}
                         onSelect={(item) => {
                           handleSelectInquiry(item);
                         }}

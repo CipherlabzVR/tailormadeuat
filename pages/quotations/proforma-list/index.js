@@ -63,6 +63,8 @@ export default function ProformaList() {
     const handleTabChange = (event, newValue) => {
         setTabValue(newValue);
         setPage(1);
+        setQuotationList([]);
+        setTotalCount(0);
         fetchQuotationList(1, searchTerm, pageSize, newValue);
     };
 
@@ -83,22 +85,10 @@ export default function ProformaList() {
         try {
             const token = localStorage.getItem("token");
             const skip = (page - 1) * size;
-            const status = (tab === 0 ? 10 : tab === 1 ? 3 : tab === 2 ? 6 : tab === 3 ? 2 : null);
+            // Tab mapping: 0=Pending(10), 1=Sent(11), 2=Confirmed(3), 3=Rejected(6), 4=Sent Quotations(2)
+            const status = (tab === 0 ? 10 : tab === 1 ? 11 : tab === 2 ? 3 : tab === 3 ? 6 : tab === 4 ? 2 : null);
 
-            if (status != 2) {
-                const query = `${BASE_URL}/Inquiry/GetAllProformaInvoice?SkipCount=${skip}&MaxResultCount=${size}&Search=${search || "null"}&status=${status}`;
-                const response = await fetch(query, {
-                    method: "GET",
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        "Content-Type": "application/json",
-                    },
-                });
-                if (!response.ok) throw new Error("Failed to fetch items");
-                const data = await response.json();
-                setQuotationList(data.result.items);
-                setTotalCount(data.result.totalCount || 0);
-            } else {
+            if (status === 2) {
                 const query = `${BASE_URL}/Inquiry/GetAllSentQuotationsGroupedByStatus?SkipCount=${skip}&MaxResultCount=${size}&Search=${search || "null"}&status=${status}`;
                 const response = await fetch(query, {
                     method: "GET",
@@ -109,8 +99,23 @@ export default function ProformaList() {
                 });
                 if (!response.ok) throw new Error("Failed to fetch items");
                 const data = await response.json();
-                setQuotationList(data.result.items);
-                setTotalCount(data.result.totalCount || 0);
+                setQuotationList(data.result?.items || []);
+                setTotalCount(data.result?.totalCount || 0);
+            } else {
+                const query = `${BASE_URL}/Inquiry/GetAllProformaInvoice?SkipCount=${skip}&MaxResultCount=${size}&Search=${search || "null"}&status=${status}`;
+                const response = await fetch(query, {
+                    method: "GET",
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                        "Content-Type": "application/json",
+                    },
+                });
+                if (!response.ok) throw new Error("Failed to fetch items");
+                const data = await response.json();
+                const items = data.result?.items || data.result || [];
+                const count = data.result?.totalCount || (Array.isArray(data.result) ? data.result.length : 0);
+                setQuotationList(Array.isArray(items) ? items : []);
+                setTotalCount(count);
             }
 
         } catch (error) {
@@ -118,8 +123,32 @@ export default function ProformaList() {
         }
     };
 
+    const handleMarkAsSent = async (invoiceId, inquiryId, warehouseId, e) => {
+        e.preventDefault();
+        try {
+            const token = localStorage.getItem("token");
+            const response = await fetch(`${BASE_URL}/Inquiry/MarkProformaInvoiceAsSent?id=${invoiceId}`, {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    "Content-Type": "application/json",
+                },
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.result?.statusCode === 200 || data.result?.message) {
+                    fetchQuotationList(1, searchTerm, pageSize, 0);
+                    const invoiceReportLink = `/PrintDocumentsLocal?InitialCatalog=${Catelogue}&documentNumber=${inquiryId}&reportName=${InvoiceReportName}&warehouseId=${warehouseId}&currentUser=${name}`;
+                    window.open(`${Report}${invoiceReportLink}`, '_blank');
+                }
+            }
+        } catch (error) {
+            console.error("Error:", error);
+        }
+    };
+
     useEffect(() => {
-        fetchQuotationList();
+        fetchQuotationList(1, searchTerm, pageSize, tabValue);
     }, []);
 
     if (!navigate) {
@@ -141,6 +170,7 @@ export default function ProformaList() {
                 <Grid item xs={12} lg={8} mb={1} order={{ xs: 2, lg: 1 }}>
                     <Tabs value={tabValue} onChange={handleTabChange}>
                         <Tab label="Pending" />
+                        <Tab label="Sent" />
                         <Tab label="Confirmed" />
                         <Tab label="Rejected" />
                         <Tab label="Sent Quotations (Confirmed)" />
@@ -168,7 +198,7 @@ export default function ProformaList() {
                 </Grid>
                 <Grid item xs={12}>
                     <TableContainer component={Paper}>
-                        {tabValue != 3 ?
+                        {tabValue != 4 ?
                             <Table aria-label="simple table" className="dark-table">
                                 <TableHead>
                                     <TableRow>
@@ -191,8 +221,11 @@ export default function ProformaList() {
                                         </TableRow>
                                     ) : (
                                         quotationList.map((item, index) => {
+                                            // Use PrintDocuments (uploads to S3) for WhatsApp
                                             const whatsapp = `/PrintDocuments?InitialCatalog=${Catelogue}&documentNumber=${item.inquiryId}&reportName=${InvoiceReportName}&warehouseId=${item.warehouseId}&currentUser=${name}`;
+                                            // Use Local for browser print preview
                                             const invoiceReportLink = `/PrintDocumentsLocal?InitialCatalog=${Catelogue}&documentNumber=${item.inquiryId}&reportName=${InvoiceReportName}&warehouseId=${item.warehouseId}&currentUser=${name}`;
+                                            
                                             return (
                                                 <TableRow key={index}>
                                                     <TableCell>{formatDate(item.invoiceDate)}</TableCell>
@@ -205,47 +238,83 @@ export default function ProformaList() {
                                                         {tabValue === 0 ? (
                                                             <Chip label="Pending" size="small" color="warning" />
                                                         ) : tabValue === 1 ? (
+                                                            <Chip label="Sent" size="small" color="info" />
+                                                        ) : tabValue === 2 ? (
                                                             <Chip label="Confirmed" size="small" color="success" />
                                                         ) : (
                                                             <Chip label="Rejected" size="small" color="error" />
                                                         )}
                                                     </TableCell>
-                                                    {tabValue === 2 ?
-                                                        <TableCell align="right">{item.rejectedReason}</TableCell>
-                                                        :
-                                                        <TableCell align="right">
-                                                            <Box display="flex" gap={2} justifyContent="end">
-                                                                {update && tabValue === 0 ?
-                                                                <SentBack id={item.inquiryId} fetchItems={fetchQuotationList}/>
+                                                    <TableCell align="right">
+                                                        <Box display="flex" gap={2} justifyContent="end" flexWrap="wrap">
+                                                            {update && tabValue === 0 ?
+                                                                <SentBack id={item.inquiryId} fetchItems={fetchQuotationList} />
                                                                 : ""}
-                                                                {update && tabValue === 0 ?
-                                                                    <Tooltip title="Edit" placement="top">
-                                                                        <IconButton onClick={() => navigateToEdit(item.inquiryId)} aria-label="edit" size="small">
-                                                                            <BorderColorIcon color="primary" fontSize="medium" />
-                                                                        </IconButton>
-                                                                    </Tooltip>
-                                                                    : ""}
-                                                                {tabValue === 1 ?
-                                                                <ShareReports url={whatsapp} mobile={item.sentWhatsappNumber} /> : "" }
-                                                                {print && tabValue === 1 ? 
-                                                                    <Tooltip title="Print" placement="top">
-                                                                        <a href={`${Report}` + invoiceReportLink} target="_blank">
-                                                                            <IconButton aria-label="print" size="small">
-                                                                                <LocalPrintshopIcon color="primary" fontSize="medium" />
-                                                                            </IconButton>
-                                                                        </a>
-                                                                    </Tooltip>
+                                                            {update && tabValue === 0 ?
+                                                                <Tooltip title="Edit" placement="top">
+                                                                    <IconButton onClick={() => navigateToEdit(item.inquiryId)} aria-label="edit" size="small">
+                                                                        <BorderColorIcon color="primary" fontSize="medium" />
+                                                                    </IconButton>
+                                                                </Tooltip>
                                                                 : ""}
-                                                                {update && tabValue === 0 ?
-                                                                    <>
-                                                                        <RejectConfirmationById id={item.id} controller="Inquiry/RejectProformaInvoice" fetchItems={fetchQuotationList} />
+                                                            {print && tabValue === 0 ?
+                                                                <Tooltip title="Print" placement="top">
+                                                                    <IconButton
+                                                                        aria-label="print"
+                                                                        size="small"
+                                                                        onClick={(e) => handleMarkAsSent(item.id, item.inquiryId, item.warehouseId, e)}
+                                                                    >
+                                                                        <LocalPrintshopIcon color="primary" fontSize="medium" />
+                                                                    </IconButton>
+                                                                </Tooltip>
+                                                                : ""}
 
-                                                                        <ConfirmInovoiceById id={item.id} fetchItems={fetchQuotationList} />
-                                                                    </>
-                                                                    : ""}
-                                                            </Box>
-                                                        </TableCell>
-                                                    }
+                                                            {/* WhatsApp for all non-sent-quotation tabs; extra print suppressed on Pending to avoid duplicates */}
+                                                            {tabValue !== 4 ? (
+                                                                <>
+                                                                    <ShareReports url={whatsapp} mobile={item.sentWhatsappNumber || item.customerContactNo} />
+                                                                    {print && tabValue !== 0 ?
+                                                                        <Tooltip title="Print" placement="top">
+                                                                            <a href={`${Report}` + invoiceReportLink} target="_blank">
+                                                                                <IconButton aria-label="print" size="small">
+                                                                                    <LocalPrintshopIcon color="primary" fontSize="medium" />
+                                                                                </IconButton>
+                                                                            </a>
+                                                                        </Tooltip>
+                                                                        : ""}
+                                                                </>
+                                                            ) : null}
+
+                                                            {/* Sent tab actions */}
+                                                            {update && tabValue === 1 ?
+                                                                <>
+                                                                    <RejectConfirmationById
+                                                                        id={item.id}
+                                                                        controller="Inquiry/RejectProformaInvoice"
+                                                                        fetchItems={() => {
+                                                                            setTabValue(3);
+                                                                            fetchQuotationList(1, searchTerm, pageSize, 3);
+                                                                        }}
+                                                                    />
+
+                                                                    <ConfirmInovoiceById
+                                                                        id={item.id}
+                                                                        fetchItems={() => {
+                                                                            setTabValue(2);
+                                                                            fetchQuotationList(1, searchTerm, pageSize, 2);
+                                                                        }}
+                                                                    />
+                                                                </>
+                                                                : ""}
+
+                                                            {/* Show rejected reason inline for rejected tab */}
+                                                            {tabValue === 3 ? (
+                                                                <Typography variant="body2" color="text.secondary">
+                                                                    {item.rejectedReason || "No reason provided"}
+                                                                </Typography>
+                                                            ) : ""}
+                                                        </Box>
+                                                    </TableCell>
                                                 </TableRow>
                                             );
                                         })
@@ -258,23 +327,42 @@ export default function ProformaList() {
                                         <TableCell>Inquiry Code</TableCell>
                                         <TableCell>Customer Name</TableCell>
                                         <TableCell>Style Name</TableCell>
+                                        <TableCell align="right">Action</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
                                     {quotationList.length === 0 ?
                                         <TableRow>
-                                            <TableCell colSpan={3}>
+                                            <TableCell colSpan={4}>
                                                 <Typography color="error">No Data Available</Typography>
                                             </TableCell>
                                         </TableRow>
                                         : (
-                                            quotationList.map((quot, index) => (
-                                                <TableRow key={index}>
-                                                    <TableCell>{quot.inquiryCode}</TableCell>
-                                                    <TableCell>{quot.customerName}</TableCell>
-                                                    <TableCell>{quot.styleName}</TableCell>
-                                                </TableRow>
-                                            ))
+                                            quotationList.map((quot, index) => {
+                                                const whatsapp = `/PrintDocuments?InitialCatalog=${Catelogue}&documentNumber=${quot.inquiryId || quot.inquiryCode}&reportName=${InvoiceReportName}&warehouseId=${quot.warehouseId || ""}&currentUser=${name}`;
+                                                const invoiceReportLink = `/PrintDocumentsLocal?InitialCatalog=${Catelogue}&documentNumber=${quot.inquiryId || quot.inquiryCode}&reportName=${InvoiceReportName}&warehouseId=${quot.warehouseId || ""}&currentUser=${name}`;
+                                                return (
+                                                    <TableRow key={index}>
+                                                        <TableCell>{quot.inquiryCode}</TableCell>
+                                                        <TableCell>{quot.customerName}</TableCell>
+                                                        <TableCell>{quot.styleName}</TableCell>
+                                                        <TableCell align="right">
+                                                            <Box display="flex" gap={2} justifyContent="end">
+                                                                <ShareReports url={whatsapp} mobile={quot.sentWhatsappNumber || quot.customerContactNo} />
+                                                                {print ?
+                                                                    <Tooltip title="Print" placement="top">
+                                                                        <a href={`${Report}` + invoiceReportLink} target="_blank">
+                                                                            <IconButton aria-label="print" size="small">
+                                                                                <LocalPrintshopIcon color="primary" fontSize="medium" />
+                                                                            </IconButton>
+                                                                        </a>
+                                                                    </Tooltip>
+                                                                    : ""}
+                                                            </Box>
+                                                        </TableCell>
+                                                    </TableRow>
+                                                );
+                                            })
                                         )}
                                 </TableBody>
                             </Table>}
