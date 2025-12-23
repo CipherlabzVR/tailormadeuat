@@ -92,11 +92,17 @@ const InvoiceCreate = () => {
         const jsonResponse = await response.json();
         if (jsonResponse.message != "") {
           toast.success(jsonResponse.result.message);
+          // Store inquiryId to remove from pending list when navigating back
+          if (selectedInquiry && selectedInquiry.inquiryId) {
+            sessionStorage.setItem("removedInquiryId", selectedInquiry.inquiryId.toString());
+          }
+          setSelectedInquiry(null);
+          setQuotations([]);
+          // Navigate back to list page (will show Processing tab)
+          router.push("/quotations/proforma-list/");
         } else {
           toast.error(jsonResponse.result.message);
         }
-        setSelectedInquiry(null);
-        setQuotations([]);
       } else {
         toast.error("Please fill all required fields");
       }
@@ -110,7 +116,7 @@ const InvoiceCreate = () => {
   const handleSelectInquiry = async (inquiry) => {
     setSelectedInquiry(inquiry);
     try {
-      const response = await fetch(`${BASE_URL}/Inquiry/GetAllQuotationsByInquiryIdAndStatus?status=2&inquiryId=${inquiry.inquiryId}`, {
+      const response = await fetch(`${BASE_URL}/Inquiry/GetAllQuotationsByInquiryIdAndStatus?status=10&inquiryId=${inquiry.inquiryId}`, {
         method: "GET",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -194,19 +200,19 @@ const InvoiceCreate = () => {
                 <Grid item xs={8}>
                   <Grid container>
                     <Grid item xs={12} display="flex" justifyContent="space-between" alignItems="center">
-                      <Typography component="label">Search Sent Quotation</Typography>
+                      <Typography component="label">Search Pending Proforma Invoice</Typography>
                     </Grid>
                     <Grid item xs={12} display="flex" justifyContent="space-between" alignItems="center">
                       <SearchQuotationByDocumentNo
                         ref={searchRef}
                         label="Search"
-                        placeholder="Search confirmed sent quotations"
-                        fetchUrl={`${BASE_URL}/Inquiry/GetAllSentQuotationsGroupedByStatus`}
+                        placeholder="Search pending proforma invoices"
+                        fetchUrl={`${BASE_URL}/Inquiry/GetAllProformaInvoice`}
                         buildParams={(value) => ({
                           SkipCount: 0,
                           MaxResultCount: 20,
                           Search: value && value.trim() !== "" ? value : "null",
-                          status: 2, // QuotationConfirmed
+                          status: 10, // ProformaInvoiceCreated (pending)
                         })}
                         onSelect={(item) => {
                           handleSelectInquiry(item);

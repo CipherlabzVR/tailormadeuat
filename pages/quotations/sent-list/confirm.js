@@ -38,7 +38,9 @@ export default function ConfirmInquiryByInquiryId({ id, fetchItems,hasPending ,h
       .then((response) => response.json())
       .then((data) => {
         if (data.result.statusCode == 200) {
-          toast.success(data.result.message);
+          toast.success("Inquiry confirmed successfully! Proforma Invoice has been created and moved to Pending tab.", {
+            autoClose: 5000,
+          });
           fetchItems();
           setOpen(false);
         } else {
@@ -49,6 +51,7 @@ export default function ConfirmInquiryByInquiryId({ id, fetchItems,hasPending ,h
         toast.error(error.message || "");
       });
   };
+
   return (
     <>
       <Button onClick={handleOpen} color="success" disabled={!(hasConfirmed && !hasPending)} variant="outlined">
@@ -77,7 +80,7 @@ export default function ConfirmInquiryByInquiryId({ id, fetchItems,hasPending ,h
               </Grid>
             </Grid>
           </Box>
-          <Box display="flex" justifyContent="space-between">
+          <Box display="flex" justifyContent="space-between" gap={1}>
             <Button
               variant="contained"
               color="primary"
