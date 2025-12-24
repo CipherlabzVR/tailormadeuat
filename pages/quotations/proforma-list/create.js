@@ -92,7 +92,38 @@ const InvoiceCreate = () => {
         const jsonResponse = await response.json();
         if (jsonResponse.message != "") {
           toast.success(jsonResponse.result.message);
-          // Store inquiryId to remove from pending list when navigating back
+          
+          // Get the created invoice ID from response or fetch it
+          // First, try to get the invoice by inquiryId to get the invoice ID
+          try {
+            const invoiceResponse = await fetch(`${BASE_URL}/Inquiry/GetProformaInvoiceByInquiryId?inquiryId=${selectedInquiry.inquiryId}`, {
+              method: "GET",
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("token")}`,
+                "Content-Type": "application/json",
+              },
+            });
+            
+            if (invoiceResponse.ok) {
+              const invoiceData = await invoiceResponse.json();
+              const invoiceId = invoiceData.result?.id;
+              
+              if (invoiceId) {
+                // Call the endpoint to move invoice to Processing tab (same method as print button)
+                await fetch(`${BASE_URL}/Inquiry/MoveProformaInvoiceToProcessing?id=${invoiceId}`, {
+                  method: "POST",
+                  headers: {
+                    Authorization: `Bearer ${localStorage.getItem("token")}`,
+                    "Content-Type": "application/json",
+                  },
+                });
+              }
+            }
+          } catch (error) {
+            console.error("Error moving invoice to processing:", error);
+          }
+          
+          // Store inquiryId to remove from pending list when navigating back (for immediate UI feedback)
           if (selectedInquiry && selectedInquiry.inquiryId) {
             sessionStorage.setItem("removedInquiryId", selectedInquiry.inquiryId.toString());
           }

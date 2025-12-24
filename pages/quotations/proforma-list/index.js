@@ -64,6 +64,13 @@ export default function ProformaList() {
         setPage(1);
         setQuotationList([]);
         setTotalCount(0);
+        // If switching away from pending tab, clear the removedInquiryId after a delay
+        // This allows the backend to catch up
+        if (tabValue === 0 && newValue !== 0) {
+            setTimeout(() => {
+                sessionStorage.removeItem("removedInquiryId");
+            }, 2000);
+        }
         fetchQuotationList(1, searchTerm, pageSize, newValue);
     };
 
@@ -101,16 +108,29 @@ export default function ProformaList() {
             let count = data.result?.totalCount || (Array.isArray(data.result) ? data.result.length : 0);
             
             // If on pending tab and we have a removed inquiry, filter it out immediately
+            // This ensures the item is removed from UI even if backend hasn't updated yet
+            // This is a temporary frontend filter - backend should handle permanent exclusion
             if (tab === 0) {
                 const removedInquiryId = sessionStorage.getItem("removedInquiryId");
                 if (removedInquiryId) {
                     const inquiryIdToRemove = parseInt(removedInquiryId);
-                    items = items.filter(item => item.inquiryId !== inquiryIdToRemove);
-                    count = Math.max(0, count - 1);
-                    // Clear after filtering
-                    sessionStorage.removeItem("removedInquiryId");
+                    const beforeFilter = items.length;
+                    items = items.filter(item => {
+                        // Filter by inquiryId - handle both string and number comparison
+                        const itemInquiryId = typeof item.inquiryId === 'string' 
+                            ? parseInt(item.inquiryId) 
+                            : item.inquiryId;
+                        return itemInquiryId !== inquiryIdToRemove;
+                    });
+                    // Adjust count if we filtered out an item
+                    if (items.length < beforeFilter) {
+                        count = Math.max(0, count - (beforeFilter - items.length));
+                    }
                 }
             }
+            
+            // Backend should handle filtering, but if items still appear after refresh,
+            // it means they're not in ProformaInvoiceProcessing table - backend issue
             
             setQuotationList(Array.isArray(items) ? items : []);
             setTotalCount(count);
@@ -120,8 +140,10 @@ export default function ProformaList() {
         }
     };
 
-    const handleMarkAsSent = async (invoiceId, inquiryId, warehouseId, e) => {
-        e.preventDefault();
+    const handleMarkAsSent = async (invoiceId, inquiryId, warehouseId, e, skipPrint = false) => {
+        if (e && e.preventDefault) {
+            e.preventDefault();
+        }
         try {
             const token = localStorage.getItem("token");
             const response = await fetch(`${BASE_URL}/Inquiry/MarkProformaInvoiceAsSent?id=${invoiceId}`, {
@@ -134,9 +156,28 @@ export default function ProformaList() {
             if (response.ok) {
                 const data = await response.json();
                 if (data.result?.statusCode === 200 || data.result?.message) {
-                    fetchQuotationList(1, searchTerm, pageSize, 0);
-                    const invoiceReportLink = `/PrintDocumentsLocal?InitialCatalog=${Catelogue}&documentNumber=${inquiryId}&reportName=${InvoiceReportName}&warehouseId=${warehouseId}&currentUser=${name}`;
-                    window.open(`${Report}${invoiceReportLink}`, '_blank');
+                    // Refresh the current tab (Processing tab if called from WhatsApp, Pending if from Print)
+                    const currentTab = skipPrint ? 1 : 0;
+                    fetchQuotationList(1, searchTerm, pageSize, currentTab);
+                    // Only open print window if not skipped (i.e., when called from Print button)
+                    if (!skipPrint) {
+                        // Validate required values
+                        if (!invoiceId || !Report || !InvoiceReportName) {
+                            console.error("Missing required values for print:", { invoiceId, Report, InvoiceReportName });
+                            return;
+                        }
+                        // Use ProformaInvoice ID (invoiceId) as documentNumber for the report
+                        const invoiceReportLink = `/PrintDocumentsLocal?InitialCatalog=${Catelogue}&documentNumber=${invoiceId}&reportName=${InvoiceReportName}&warehouseId=${warehouseId || 0}&currentUser=${name || ''}`;
+                        const fullUrl = `${Report}${invoiceReportLink}`;
+                        window.open(fullUrl, '_blank');
+                    }
+                    // If called from Processing tab, switch to Sent tab after marking as sent
+                    if (skipPrint) {
+                        setTimeout(() => {
+                            setTabValue(2); // Switch to Sent tab
+                            fetchQuotationList(1, searchTerm, pageSize, 2);
+                        }, 500);
+                    }
                 }
             }
         } catch (error) {
@@ -148,17 +189,40 @@ export default function ProformaList() {
         // Check if we're returning from create page
         const removedInquiryId = sessionStorage.getItem("removedInquiryId");
         if (removedInquiryId) {
-            // If currently on pending tab, refresh it to remove the item
+            // Immediately remove from pending list if we're on pending tab (for instant visual feedback)
+            const inquiryIdToRemove = parseInt(removedInquiryId);
             if (tabValue === 0) {
-                fetchQuotationList(1, searchTerm, pageSize, 0);
+                // Filter immediately for instant visual feedback
+                setQuotationList(prevList => {
+                    if (prevList.length > 0) {
+                        const filtered = prevList.filter(item => {
+                            const itemInquiryId = typeof item.inquiryId === 'string' 
+                                ? parseInt(item.inquiryId) 
+                                : item.inquiryId;
+                            return itemInquiryId !== inquiryIdToRemove;
+                        });
+                        if (filtered.length < prevList.length) {
+                            setTotalCount(prev => Math.max(0, prev - (prevList.length - filtered.length)));
+                        }
+                        return filtered;
+                    }
+                    return prevList;
+                });
             }
+            // Refresh pending tab to get updated data (backend should exclude it via ProformaInvoiceProcessing table)
+            fetchQuotationList(1, searchTerm, pageSize, 0);
             // Switch to Processing tab to show the newly created invoice
-            setTabValue(1);
-            // Fetch processing tab data
-            fetchQuotationList(1, searchTerm, pageSize, 1);
+            setTimeout(() => {
+                setTabValue(1);
+                // Fetch processing tab data
+                fetchQuotationList(1, searchTerm, pageSize, 1);
+                // Clear sessionStorage after switching - backend should handle filtering now
+                sessionStorage.removeItem("removedInquiryId");
+            }, 500);
         } else {
             fetchQuotationList(1, searchTerm, pageSize, tabValue);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     if (!navigate) {
@@ -222,18 +286,40 @@ export default function ProformaList() {
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
-                                    {quotationList.length === 0 ? (
-                                        <TableRow>
-                                            <TableCell colSpan={8}>
-                                                <Typography color="error">No Invoice Available</Typography>
-                                            </TableCell>
-                                        </TableRow>
-                                    ) : (
-                                        quotationList.map((item, index) => {
+                                    {(() => {
+                                        // Filter out removed inquiry from pending tab
+                                        let displayList = quotationList;
+                                        if (tabValue === 0) {
+                                            const removedInquiryId = sessionStorage.getItem("removedInquiryId");
+                                            if (removedInquiryId) {
+                                                const inquiryIdToRemove = parseInt(removedInquiryId);
+                                                displayList = quotationList.filter(item => {
+                                                    const itemInquiryId = typeof item.inquiryId === 'string' 
+                                                        ? parseInt(item.inquiryId) 
+                                                        : item.inquiryId;
+                                                    return itemInquiryId !== inquiryIdToRemove;
+                                                });
+                                            }
+                                        }
+                                        
+                                        return displayList.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={8}>
+                                                    <Typography color="error">No Invoice Available</Typography>
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            displayList.map((item, index) => {
+                                            // Validate required fields
+                                            if (!item.inquiryId) {
+                                                console.error("Missing inquiryId for item:", item);
+                                                return null;
+                                            }
                                             // Use PrintDocuments (uploads to S3) for WhatsApp
-                                            const whatsapp = `/PrintDocuments?InitialCatalog=${Catelogue}&documentNumber=${item.inquiryId}&reportName=${InvoiceReportName}&warehouseId=${item.warehouseId}&currentUser=${name}`;
+                                            // Use ProformaInvoice ID (item.id) as documentNumber - same as print button
+                                            const whatsapp = `/PrintDocuments?InitialCatalog=${Catelogue}&documentNumber=${item.id}&reportName=${InvoiceReportName}&warehouseId=${item.warehouseId || 0}&currentUser=${name || ''}`;
                                             // Use Local for browser print preview
-                                            const invoiceReportLink = `/PrintDocumentsLocal?InitialCatalog=${Catelogue}&documentNumber=${item.inquiryId}&reportName=${InvoiceReportName}&warehouseId=${item.warehouseId}&currentUser=${name}`;
+                                            const invoiceReportLink = `/PrintDocumentsLocal?InitialCatalog=${Catelogue}&documentNumber=${item.id}&reportName=${InvoiceReportName}&warehouseId=${item.warehouseId || 0}&currentUser=${name || ''}`;
                                             
                                             return (
                                                 <TableRow key={index}>
@@ -285,16 +371,35 @@ export default function ProformaList() {
 
                                                             {/* WhatsApp / Print */}
                                                             <>
-                                                                <ShareReports url={whatsapp} mobile={item.sentWhatsappNumber || item.customerContactNo} />
+                                                                {tabValue === 1 || tabValue === 2 ? (
+                                                                    <ShareReports 
+                                                                        url={whatsapp} 
+                                                                        mobile={(item.sentWhatsappNumber && item.sentWhatsappNumber.trim() !== "") ? item.sentWhatsappNumber : (item.customerContactNo && item.customerContactNo.trim() !== "" ? item.customerContactNo : null)}
+                                                                        onSuccess={tabValue === 1 ? () => handleMarkAsSent(item.id, item.inquiryId, item.warehouseId, null, true) : undefined}
+                                                                    />
+                                                                ) : ""}
                                                                 {print && tabValue !== 0 ?
                                                                     <Tooltip title="Print" placement="top">
-                                                                        <IconButton
-                                                                            aria-label="print"
-                                                                            size="small"
-                                                                            onClick={(e) => handleMarkAsSent(item.id, item.inquiryId, item.warehouseId, e)}
-                                                                        >
+                                                                        {tabValue === 2 ? (
+                                                                            // For Sent tab, use direct link (already sent, no need to call API)
+                                                                            <a href={`${Report}${invoiceReportLink}`} target="_blank" rel="noopener noreferrer">
+                                                                                <IconButton
+                                                                                    aria-label="print"
+                                                                                    size="small"
+                                                                                >
+                                                                                    <LocalPrintshopIcon color="primary" fontSize="medium" />
+                                                                                </IconButton>
+                                                                            </a>
+                                                                        ) : (
+                                                                            // For Processing tab, use onClick to mark as sent
+                                                                            <IconButton
+                                                                                aria-label="print"
+                                                                                size="small"
+                                                                                onClick={(e) => handleMarkAsSent(item.id, item.inquiryId, item.warehouseId, e)}
+                                                                            >
                                                                                 <LocalPrintshopIcon color="primary" fontSize="medium" />
                                                                             </IconButton>
+                                                                        )}
                                                                     </Tooltip>
                                                                 : ""}
                                                             </>
@@ -326,7 +431,8 @@ export default function ProformaList() {
                                                 </TableRow>
                                             );
                                         })
-                                    )}
+                                        );
+                                    })()}
                                 </TableBody>
                             </Table>
                         <Grid container justifyContent="space-between" mt={2} mb={2}>
