@@ -18,7 +18,7 @@ const style = {
   p: 3,
 };
 
-export default function ConfirmInquiryByInquiryId({ id, fetchItems,hasPending ,hasConfirmed}) {
+export default function ConfirmInquiryByInquiryId({ id, fetchItems, hasPending, hasConfirmed, onSuccess }) {
   const [open, setOpen] = React.useState(false);
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
@@ -42,6 +42,7 @@ export default function ConfirmInquiryByInquiryId({ id, fetchItems,hasPending ,h
             autoClose: 5000,
           });
           fetchItems();
+          if (onSuccess) onSuccess();
           setOpen(false);
         } else {
           toast.error(data.result.message);
@@ -54,7 +55,12 @@ export default function ConfirmInquiryByInquiryId({ id, fetchItems,hasPending ,h
 
   return (
     <>
-      <Button onClick={handleOpen} color="success" disabled={!(hasConfirmed && !hasPending)} variant="outlined">
+      <Button
+        onClick={handleOpen}
+        color="success"
+        disabled={hasPending || (!hasPending && !hasConfirmed)} // disable when pending exists or all are rejected
+        variant="outlined"
+      >
         Confirm
       </Button>
       <Modal

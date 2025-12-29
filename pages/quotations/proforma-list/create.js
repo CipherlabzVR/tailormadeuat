@@ -18,20 +18,68 @@ import styles from "@/styles/PageTitle.module.css";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import LoadingButton from "@/components/UIElements/Buttons/LoadingButton";
-import SearchQuotationByDocumentNo from "@/components/utils/SearchQuotationByDocumentNo";
 import BASE_URL from "Base/api";
 import { formatCurrency, formatDate } from "@/components/utils/formatHelper";
 import { useRouter } from "next/router";
 
 const InvoiceCreate = () => {
   const router = useRouter();
+  const prefillDone = useRef(false);
   const today = new Date();
   const [invoiceDate, setInvoiceDate] = useState(formatDate(today));
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedInquiry, setSelectedInquiry] = useState(null);
   const [totalAdvance, setTotalAdvance] = useState(0);
   const [quotations, setQuotations] = useState([]);
-  const searchRef = useRef(null);
+
+  const preselectInquiryFromQuery = async () => {
+    const { inquiryId, customerId, customerName, inquiryCode, styleName } = router.query;
+    const parsedInquiryId = inquiryId ? Number(inquiryId) : null;
+    const parsedCustomerId = customerId ? Number(customerId) : null;
+
+    if (!parsedInquiryId) return;
+
+    // Build initial payload from query params if available
+    let payload = {
+      inquiryId: parsedInquiryId,
+      customerId: parsedCustomerId,
+      customerName: customerName || "",
+      inquiryCode: inquiryCode || "",
+      styleName: styleName || "",
+    };
+
+    // If we are missing key fields, fetch details by inquiry id to hydrate them
+    if (!parsedCustomerId || !customerName || !inquiryCode || !styleName) {
+      try {
+        const response = await fetch(`${BASE_URL}/Inquiry/GetProformaInvoiceByInquiryId?inquiryId=${parsedInquiryId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            "Content-Type": "application/json",
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const result = data.result || {};
+          payload = {
+            inquiryId: result.inquiryId || parsedInquiryId,
+            customerId: result.customerId || parsedCustomerId,
+            customerName: result.customerName || customerName || "",
+            inquiryCode: result.inquiryCode || inquiryCode || "",
+            styleName: result.styleName || styleName || "",
+          };
+        }
+      } catch (err) {
+        console.error("Error preselecting inquiry:", err);
+      }
+    }
+
+    // Only proceed if we have the identifiers we need
+    if (payload.inquiryId && payload.customerId) {
+      handleSelectInquiry(payload);
+    }
+  };
 
   const handleSubmit = async () => {
     if (selectedInquiry == null) {
@@ -147,21 +195,36 @@ const InvoiceCreate = () => {
   const handleSelectInquiry = async (inquiry) => {
     setSelectedInquiry(inquiry);
     try {
-      const response = await fetch(`${BASE_URL}/Inquiry/GetAllQuotationsByInquiryIdAndStatus?status=10&inquiryId=${inquiry.inquiryId}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json",
-        },
-      });
+      // Try multiple statuses until we find quotation rows
+      const statusesToTry = [10, 12]; // Pending, Processing
+      let quotationsResult = [];
 
-      const data = await response.json();
+      for (const status of statusesToTry) {
+        const response = await fetch(`${BASE_URL}/Inquiry/GetAllQuotationsByInquiryIdAndStatus?status=${status}&inquiryId=${inquiry.inquiryId}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            "Content-Type": "application/json",
+          },
+        });
 
-      const updatedResult = data.result.map(item => {
+        if (!response.ok) continue;
+        const data = await response.json();
+        const items = data.result || [];
+        if (items.length > 0) {
+          quotationsResult = items;
+          break;
+        }
+      }
+
+      const updatedResult = quotationsResult.map(item => {
         const total = parseFloat(item.totalAmount) || 0;
         const percentage = parseFloat(item.advancePaymentPercentage) || 0;
-        const advanceAmount = (total * percentage) / 100;
-        const balanceAmount = total - advanceAmount;
+        // If advanceAmount already exists, prefer backend-calculated values
+        const advanceFromBackend = item.advanceAmount !== undefined ? Number(item.advanceAmount) : null;
+        const advanceAmount = advanceFromBackend !== null ? advanceFromBackend : (total * percentage) / 100;
+        const balanceFromBackend = item.balanceAmount !== undefined ? Number(item.balanceAmount) : null;
+        const balanceAmount = balanceFromBackend !== null ? balanceFromBackend : (total - advanceAmount);
 
         return {
           ...item,
@@ -206,6 +269,13 @@ const InvoiceCreate = () => {
     setTotalAdvance(total);
   }, [quotations]);
 
+  // When navigated from pending list, preselect the related customer/inquiry
+  useEffect(() => {
+    if (!router.isReady || prefillDone.current) return;
+    prefillDone.current = true;
+    preselectInquiryFromQuery();
+  }, [router.isReady, router.query]);
+
   return (
     <>
       <ToastContainer />
@@ -226,40 +296,12 @@ const InvoiceCreate = () => {
       >
         <Grid item xs={12} sx={{ background: "#fff" }}>
           <Grid container p={1}>
-            <Grid item xs={12} gap={2} display="flex" justifyContent="end">
-              <Grid container>
-                <Grid item xs={8}>
-                  <Grid container>
-                    <Grid item xs={12} display="flex" justifyContent="space-between" alignItems="center">
-                      <Typography component="label">Search Pending Proforma Invoice</Typography>
-                    </Grid>
-                    <Grid item xs={12} display="flex" justifyContent="space-between" alignItems="center">
-                      <SearchQuotationByDocumentNo
-                        ref={searchRef}
-                        label="Search"
-                        placeholder="Search pending proforma invoices"
-                        fetchUrl={`${BASE_URL}/Inquiry/GetAllProformaInvoice`}
-                        buildParams={(value) => ({
-                          SkipCount: 0,
-                          MaxResultCount: 20,
-                          Search: value && value.trim() !== "" ? value : "null",
-                          status: 10, // ProformaInvoiceCreated (pending)
-                        })}
-                        onSelect={(item) => {
-                          handleSelectInquiry(item);
-                        }}
-                      />
-                    </Grid>
-                  </Grid>
-                </Grid>
-                <Grid item xs={4} display="flex" justifyContent="end" alignItems="center">
-                  <Box>
-                    <Button variant="outlined" onClick={() => navigateToBack()}>
-                      <Typography sx={{ fontWeight: "bold" }}>Go Back</Typography>
-                    </Button>
-                  </Box>
-                </Grid>
-              </Grid>
+            <Grid item xs={12} display="flex" justifyContent="end">
+              <Box>
+                <Button variant="outlined" onClick={() => navigateToBack()}>
+                  <Typography sx={{ fontWeight: "bold" }}>Go Back</Typography>
+                </Button>
+              </Box>
             </Grid>
             <Grid item xs={12} mt={3}>
               <Grid container spacing={1}>

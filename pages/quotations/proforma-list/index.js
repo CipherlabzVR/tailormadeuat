@@ -9,10 +9,10 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Paper from "@mui/material/Paper";
-import { Pagination, Typography, FormControl, InputLabel, MenuItem, Select, Tooltip, IconButton, Box, Tabs, Tab, Button, Chip } from "@mui/material";
+import { Pagination, Typography, FormControl, InputLabel, MenuItem, Select, Tooltip, IconButton, Box, Tabs, Tab, Chip } from "@mui/material";
+import { Search, StyledInputBase } from "@/styles/main/search-styles";
 import { ToastContainer } from "react-toastify";
 import BASE_URL from "Base/api";
-import { Search, StyledInputBase } from "@/styles/main/search-styles";
 import IsPermissionEnabled from "@/components/utils/IsPermissionEnabled";
 import AccessDenied from "@/components/UIElements/Permission/AccessDenied";
 import { formatCurrency, formatDate } from "@/components/utils/formatHelper";
@@ -23,6 +23,7 @@ import { Report } from "Base/report";
 import LocalPrintshopIcon from "@mui/icons-material/LocalPrintshop";
 import { useRouter } from "next/router";
 import BorderColorIcon from "@mui/icons-material/BorderColor";
+import AddIcon from "@mui/icons-material/Add";
 import RejectConfirmationById from "./reject";
 import ConfirmInovoiceById from "./confirm";
 import SentBack from "./sent-back";
@@ -74,16 +75,30 @@ export default function ProformaList() {
         fetchQuotationList(1, searchTerm, pageSize, newValue);
     };
 
-    const navigateToCreate = () => {
+    const navigateToCreate = (item = null) => {
+        // If coming from pending list, forward context so create page can preselect the customer
+        const query = item ? {
+            inquiryId: item.inquiryId,
+            customerId: item.customerId,
+            customerName: item.customerName,
+            inquiryCode: item.inquiryCode,
+            styleName: item.styleName
+        } : {};
+
         router.push({
             pathname: "/quotations/proforma-list/create",
+            query
         });
     };
 
-    const navigateToEdit = (id) => {
+    const navigateToEdit = (id, proformaInvoiceId = null) => {
+        const query = { id: id };
+        if (proformaInvoiceId) {
+            query.proformaInvoiceId = proformaInvoiceId;
+        }
         router.push({
             pathname: "/quotations/proforma-list/edit",
-            query: { id: id }
+            query: query
         });
     };
 
@@ -129,6 +144,20 @@ export default function ProformaList() {
                 }
             }
             
+            // If on Sent tab and we have an edited invoice, filter it out immediately
+            // This ensures the item is removed from UI even if backend hasn't updated yet
+            if (tab === 2) {
+                const editedInvoiceId = sessionStorage.getItem("editedInvoiceId");
+                if (editedInvoiceId) {
+                    const invoiceIdToRemove = parseInt(editedInvoiceId);
+                    const beforeFilter = items.length;
+                    items = items.filter(item => item.id !== invoiceIdToRemove);
+                    if (items.length < beforeFilter) {
+                        count = Math.max(0, count - (beforeFilter - items.length));
+                    }
+                }
+            }
+            
             // Backend should handle filtering, but if items still appear after refresh,
             // it means they're not in ProformaInvoiceProcessing table - backend issue
             
@@ -138,6 +167,20 @@ export default function ProformaList() {
         } catch (error) {
             console.error("Error:", error);
         }
+    };
+
+    // After status changes (confirm/reject) refresh both target tab and Sent tab, then switch view
+    const refreshAfterStatusChange = async (targetTab, stayOnSent = true) => {
+        // Reset state to avoid showing stale rows
+        setPage(1);
+        setQuotationList([]);
+        setTotalCount(0);
+        // Stay on Sent tab so remaining quotations can be actioned; still refresh target tab
+        setTabValue(stayOnSent ? 2 : targetTab);
+        // Give backend a moment to commit before refetching
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        await fetchQuotationList(1, searchTerm, pageSize, targetTab); // load target tab
+        await fetchQuotationList(1, searchTerm, pageSize, 2); // refresh Sent tab to remove the item
     };
 
     const handleMarkAsSent = async (invoiceId, inquiryId, warehouseId, e, skipPrint = false) => {
@@ -166,7 +209,8 @@ export default function ProformaList() {
                             console.error("Missing required values for print:", { invoiceId, Report, InvoiceReportName });
                             return;
                         }
-                        // Use ProformaInvoice ID (invoiceId) as documentNumber for the report
+                        // Use ProformaInvoice ID as documentNumber for the report
+                        // The report filters by ProformaInvoice.Id field in the database
                         const invoiceReportLink = `/PrintDocumentsLocal?InitialCatalog=${Catelogue}&documentNumber=${invoiceId}&reportName=${InvoiceReportName}&warehouseId=${warehouseId || 0}&currentUser=${name || ''}`;
                         const fullUrl = `${Report}${invoiceReportLink}`;
                         window.open(fullUrl, '_blank');
@@ -186,6 +230,42 @@ export default function ProformaList() {
     };
 
     useEffect(() => {
+        // Check if we need to switch to Processing tab after edit
+        const switchToProcessing = sessionStorage.getItem("switchToProcessingTab");
+        const editedInvoiceId = sessionStorage.getItem("editedInvoiceId");
+        
+        if (switchToProcessing === "true") {
+            sessionStorage.removeItem("switchToProcessingTab");
+            if (editedInvoiceId) {
+                // Don't remove editedInvoiceId yet - keep it for filtering in fetchQuotationList
+                // Remove the edited invoice from current tab's list if it exists (for instant UI feedback)
+                const invoiceIdToRemove = parseInt(editedInvoiceId);
+                setQuotationList(prevList => {
+                    if (prevList.length > 0) {
+                        const filtered = prevList.filter(item => item.id !== invoiceIdToRemove);
+                        if (filtered.length < prevList.length) {
+                            setTotalCount(prev => Math.max(0, prev - (prevList.length - filtered.length)));
+                        }
+                        return filtered;
+                    }
+                    return prevList;
+                });
+                // Also refresh Sent tab to remove the invoice (in case user switches back to Sent tab)
+                setTimeout(() => {
+                    fetchQuotationList(1, searchTerm, pageSize, 2); // Refresh Sent tab (status 11)
+                    // Clear editedInvoiceId after refreshing Sent tab
+                    sessionStorage.removeItem("editedInvoiceId");
+                }, 1000);
+            }
+            // Switch to Processing tab immediately
+            setTabValue(1); // Switch to Processing tab
+            // Fetch processing tab data after a delay to ensure backend has committed
+            setTimeout(() => {
+                fetchQuotationList(1, searchTerm, pageSize, 1);
+            }, 800);
+            return;
+        }
+
         // Check if we're returning from create page
         const removedInquiryId = sessionStorage.getItem("removedInquiryId");
         if (removedInquiryId) {
@@ -223,7 +303,7 @@ export default function ProformaList() {
             fetchQuotationList(1, searchTerm, pageSize, tabValue);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [tabValue]);
 
     if (!navigate) {
         return <AccessDenied />;
@@ -241,7 +321,7 @@ export default function ProformaList() {
                 </ul>
             </div>
             <Grid container>
-                <Grid item xs={12} lg={8} mb={1} order={{ xs: 2, lg: 1 }}>
+                <Grid item xs={12} mb={1}>
                     <Tabs value={tabValue} onChange={handleTabChange}>
                         <Tab label="Pending" />
                         <Tab label="Processing" />
@@ -249,13 +329,6 @@ export default function ProformaList() {
                         <Tab label="Confirmed" />
                         <Tab label="Rejected" />
                     </Tabs>
-                </Grid>
-                <Grid item xs={12} lg={4} mb={1} display="flex" alignItems="center" justifyContent="end" order={{ xs: 1, lg: 2 }}>
-                    <Box>
-                        <Button variant="outlined" onClick={() => navigateToCreate()}>
-                            + Add New
-                        </Button>
-                    </Box>
                 </Grid>
             </Grid>
 
@@ -316,10 +389,22 @@ export default function ProformaList() {
                                                 return null;
                                             }
                                             // Use PrintDocuments (uploads to S3) for WhatsApp
-                                            // Use ProformaInvoice ID (item.id) as documentNumber - same as print button
-                                            const whatsapp = `/PrintDocuments?InitialCatalog=${Catelogue}&documentNumber=${item.id}&reportName=${InvoiceReportName}&warehouseId=${item.warehouseId || 0}&currentUser=${name || ''}`;
+                                            // The ProformaInvoice report expects InquiryId as DocumentNumber parameter
+                                            // Testing InquiryId since ProformaInvoice ID and InquiryCode didn't work
+                                            const documentNumber = item.inquiryId.toString();
+                                            
+                                            // Log the values for debugging (can be removed after confirming it works)
+                                            console.log("Report Parameters:", {
+                                                proformaInvoiceId: item.id,
+                                                inquiryId: item.inquiryId,
+                                                inquiryCode: item.inquiryCode,
+                                                documentNumber: documentNumber,
+                                                reportName: InvoiceReportName
+                                            });
+                                            
+                                            const whatsapp = `/PrintDocuments?InitialCatalog=${Catelogue}&documentNumber=${documentNumber}&reportName=${InvoiceReportName}&warehouseId=${item.warehouseId || 0}&currentUser=${name || ''}`;
                                             // Use Local for browser print preview
-                                            const invoiceReportLink = `/PrintDocumentsLocal?InitialCatalog=${Catelogue}&documentNumber=${item.id}&reportName=${InvoiceReportName}&warehouseId=${item.warehouseId || 0}&currentUser=${name || ''}`;
+                                            const invoiceReportLink = `/PrintDocumentsLocal?InitialCatalog=${Catelogue}&documentNumber=${documentNumber}&reportName=${InvoiceReportName}&warehouseId=${item.warehouseId || 0}&currentUser=${name || ''}`;
                                             
                                             return (
                                                 <TableRow key={index}>
@@ -347,6 +432,13 @@ export default function ProformaList() {
                                                     ) : (
                                                         <TableCell align="right">
                                                         <Box display="flex" gap={2} justifyContent="end" flexWrap="wrap">
+                                                                {create && tabValue === 0 ? (
+                                                                    <Tooltip title="Add New" placement="top">
+                                                                        <IconButton onClick={() => navigateToCreate(item)} aria-label="add" size="small">
+                                                                            <AddIcon color="primary" fontSize="medium" />
+                                                                        </IconButton>
+                                                                    </Tooltip>
+                                                                ) : ""}
                                                                 {update && tabValue === 0 ?
                                                                 <SentBack id={item.inquiryId} fetchItems={fetchQuotationList} />
                                                                 : ""}
@@ -362,7 +454,7 @@ export default function ProformaList() {
                                                                     <IconButton
                                                                         aria-label="print"
                                                                         size="small"
-                                                                        onClick={(e) => handleMarkAsSent(item.id, item.inquiryId, item.warehouseId, e)}
+                                                                        onClick={() => window.open(`${Report}${invoiceReportLink}`, "_blank")}
                                                                     >
                                                                         <LocalPrintshopIcon color="primary" fontSize="medium" />
                                                                     </IconButton>
@@ -405,23 +497,23 @@ export default function ProformaList() {
                                                             </>
 
                                                             {/* Sent tab actions (now tabValue === 2) */}
-                                                            {update && tabValue === 2 ?
+                                                            {tabValue === 2 ?
                                                                     <>
+                                                                    <Tooltip title="Edit" placement="top">
+                                                                        <IconButton onClick={() => navigateToEdit(item.inquiryId, item.id)} aria-label="edit" size="small">
+                                                                            <BorderColorIcon color="primary" fontSize="medium" />
+                                                                        </IconButton>
+                                                                    </Tooltip>
                                                                     <RejectConfirmationById
                                                                         id={item.id}
                                                                         controller="Inquiry/RejectProformaInvoice"
-                                                                        fetchItems={() => {
-                                                                            setTabValue(4);
-                                                                            fetchQuotationList(1, searchTerm, pageSize, 4);
-                                                                        }}
+                                                                        fetchItems={() => refreshAfterStatusChange(4, true)}
                                                                     />
 
                                                                     <ConfirmInovoiceById
                                                                         id={item.id}
-                                                                        fetchItems={() => {
-                                                                            setTabValue(3);
-                                                                            fetchQuotationList(1, searchTerm, pageSize, 3);
-                                                                        }}
+                                                                        paidAmount={item.advancePayment}
+                                                                        fetchItems={() => refreshAfterStatusChange(3, true)}
                                                                     />
                                                                     </>
                                                                     : ""}
