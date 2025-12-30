@@ -41,6 +41,25 @@ export default function ProformaList() {
     const name = localStorage.getItem("name");
     const { data: InvoiceReportName } = GetReportSettingValueByName("ProformaInvoiceReport");
 
+    const getHiddenPendingInquiryIds = () => {
+        try {
+            const raw = sessionStorage.getItem("hiddenPendingInquiryIds");
+            const parsed = raw ? JSON.parse(raw) : [];
+            return Array.isArray(parsed) ? parsed.map((x) => parseInt(x)).filter((x) => !Number.isNaN(x)) : [];
+        } catch {
+            return [];
+        }
+    };
+
+    const addHiddenPendingInquiryId = (id) => {
+        const parsedId = parseInt(id);
+        if (Number.isNaN(parsedId)) return;
+        const existing = getHiddenPendingInquiryIds();
+        if (!existing.includes(parsedId)) {
+            sessionStorage.setItem("hiddenPendingInquiryIds", JSON.stringify([...existing, parsedId]));
+        }
+    };
+
     const handleSearchChange = (event) => {
         const value = event.target.value;
         setSearchTerm(value);
@@ -65,13 +84,6 @@ export default function ProformaList() {
         setPage(1);
         setQuotationList([]);
         setTotalCount(0);
-        // If switching away from pending tab, clear the removedInquiryId after a delay
-        // This allows the backend to catch up
-        if (tabValue === 0 && newValue !== 0) {
-            setTimeout(() => {
-                sessionStorage.removeItem("removedInquiryId");
-            }, 2000);
-        }
         fetchQuotationList(1, searchTerm, pageSize, newValue);
     };
 
@@ -126,16 +138,19 @@ export default function ProformaList() {
             // This ensures the item is removed from UI even if backend hasn't updated yet
             // This is a temporary frontend filter - backend should handle permanent exclusion
             if (tab === 0) {
+                const hiddenIds = getHiddenPendingInquiryIds();
                 const removedInquiryId = sessionStorage.getItem("removedInquiryId");
                 if (removedInquiryId) {
-                    const inquiryIdToRemove = parseInt(removedInquiryId);
+                    addHiddenPendingInquiryId(removedInquiryId);
+                }
+                if (hiddenIds.length > 0) {
                     const beforeFilter = items.length;
                     items = items.filter(item => {
                         // Filter by inquiryId - handle both string and number comparison
                         const itemInquiryId = typeof item.inquiryId === 'string' 
                             ? parseInt(item.inquiryId) 
                             : item.inquiryId;
-                        return itemInquiryId !== inquiryIdToRemove;
+                        return !hiddenIds.includes(itemInquiryId);
                     });
                     // Adjust count if we filtered out an item
                     if (items.length < beforeFilter) {
@@ -269,6 +284,7 @@ export default function ProformaList() {
         // Check if we're returning from create page
         const removedInquiryId = sessionStorage.getItem("removedInquiryId");
         if (removedInquiryId) {
+            addHiddenPendingInquiryId(removedInquiryId);
             // Immediately remove from pending list if we're on pending tab (for instant visual feedback)
             const inquiryIdToRemove = parseInt(removedInquiryId);
             if (tabValue === 0) {
@@ -296,7 +312,7 @@ export default function ProformaList() {
                 setTabValue(1);
                 // Fetch processing tab data
                 fetchQuotationList(1, searchTerm, pageSize, 1);
-                // Clear sessionStorage after switching - backend should handle filtering now
+                // Keep hiddenPendingInquiryIds so the item doesn't reappear in Pending even if backend is slow
                 sessionStorage.removeItem("removedInquiryId");
             }, 500);
         } else {
@@ -363,14 +379,13 @@ export default function ProformaList() {
                                         // Filter out removed inquiry from pending tab
                                         let displayList = quotationList;
                                         if (tabValue === 0) {
-                                            const removedInquiryId = sessionStorage.getItem("removedInquiryId");
-                                            if (removedInquiryId) {
-                                                const inquiryIdToRemove = parseInt(removedInquiryId);
+                                            const hiddenIds = getHiddenPendingInquiryIds();
+                                            if (hiddenIds.length > 0) {
                                                 displayList = quotationList.filter(item => {
                                                     const itemInquiryId = typeof item.inquiryId === 'string' 
                                                         ? parseInt(item.inquiryId) 
                                                         : item.inquiryId;
-                                                    return itemInquiryId !== inquiryIdToRemove;
+                                                    return !hiddenIds.includes(itemInquiryId);
                                                 });
                                             }
                                         }
@@ -482,6 +497,20 @@ export default function ProformaList() {
                                                                                     <LocalPrintshopIcon color="primary" fontSize="medium" />
                                                                                 </IconButton>
                                                                             </a>
+                                                                        ) : tabValue === 3 ? (
+                                                                            // For Confirmed tab, open print then navigate to Tech Pack page
+                                                                            <IconButton
+                                                                                aria-label="print"
+                                                                                size="small"
+                                                                                onClick={() => {
+                                                                                    // Open print in new tab (popup blockers are less likely to block direct user gesture)
+                                                                                    window.open(`${Report}${invoiceReportLink}`, "_blank");
+                                                                                    // Hard redirect to ensure navigation always happens
+                                                                                    window.location.href = "/quotations/tech-pack/";
+                                                                                }}
+                                                                            >
+                                                                                <LocalPrintshopIcon color="primary" fontSize="medium" />
+                                                                            </IconButton>
                                                                         ) : (
                                                                             // For Processing tab, use onClick to mark as sent
                                                                             <IconButton
