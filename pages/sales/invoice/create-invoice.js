@@ -41,6 +41,8 @@ import SearchPackageByName from "@/components/utils/SearchPackageByName";
 import { Report } from "Base/report";
 import { Catelogue } from "Base/catelogue";
 import GetReportSettingValueByName from "@/components/utils/GetReportSettingValueByName";
+import AddCustomerDialog from "@/components/UIElements/Modal/AddCustomerDialog";
+import GetAllSalesPersons from "@/components/utils/GetAllSalesPerson";
 
 const InvoiceCreate = () => {
   const today = new Date();
@@ -126,6 +128,31 @@ const InvoiceCreate = () => {
 
   const { data: doctorsList } = useApi("/Doctors/GetAll");
 
+  // Function to refetch customers after creating a new one
+  const fetchCustomers = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${BASE_URL}/Customer/GetAllCustomer`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch customers");
+      }
+
+      const data = await response.json();
+      const customersData = Array.isArray(data) ? data : data?.result || [];
+      setCustomers(customersData);
+    } catch (error) {
+      console.error("Error fetching customers:", error);
+      toast.error("Failed to refresh customer list");
+    }
+  };
+
 
   const fetchStockList = async (id) => {
     try {
@@ -149,11 +176,12 @@ const InvoiceCreate = () => {
     }
   };
 
-  const {
-    data: salesPersonList,
-    loading: salesPersonLoading,
-    error: salesPersonError,
-  } = useApi("/SalesPerson/GetAllSalesPerson");
+  const { data: salesPersonList } = GetAllSalesPersons();
+  
+  // Debug: Log salesperson data
+  useEffect(() => {
+    console.log("SalesPerson List:", salesPersonList);
+  }, [salesPersonList]);
 
 
   const searchRef = useRef(null);
@@ -279,8 +307,6 @@ const InvoiceCreate = () => {
     }
   }
 
-  console.log(stock);
-
   const handleClose = () => setOpen(false);
 
   const handleSubmit = async () => {
@@ -386,7 +412,6 @@ const InvoiceCreate = () => {
     if (invoiceLines.length === 0) {
       return toast.error("At least one item must be added to the table.");
     }
-
 
     const underCostMessages = invoiceLines
       .map((line) => {
@@ -507,6 +532,12 @@ const InvoiceCreate = () => {
 
     item = stockBalance[selectedIndex];
 
+    const existingItem = selectedRows.find((row) => row.id === item.id);
+    if (existingItem) {
+      toast.error("This item already exists in the table. Cannot add duplicate items.");
+      return;
+    }
+
     const newRow = {
       ...item,
       quantity: "",
@@ -531,6 +562,13 @@ const InvoiceCreate = () => {
   };
 
   const handleAddPackage = (item) => {
+    // Check if item with same id already exists
+    const existingItem = selectedRows.find((row) => row.id === item.id);
+    if (existingItem) {
+      toast.error("This item already exists in the table. Cannot add duplicate items.");
+      return;
+    }
+
     const newRow = {
       ...item,
       quantity: 1,
@@ -703,32 +741,35 @@ const InvoiceCreate = () => {
                 >
                   Customer
                 </Typography>
-                <Autocomplete
-                  sx={{ width: "60%" }}
-                  options={customers || []}
-                  getOptionLabel={(option) => option.firstName || ""}
-                  value={customer}
-                  onChange={(event, newValue) => {
-                    setCustomer(newValue);
-                    if (newValue) {
-                      setAddress1(newValue.addressLine1 || "");
-                      setAddress2(newValue.addressLine2 || "");
-                      setAddress3(newValue.addressLine3 || "");
-                    } else {
-                      setAddress1("");
-                      setAddress2("");
-                      setAddress3("");
-                    }
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      fullWidth
-                      placeholder="Search Customer"
-                    />
-                  )}
-                />
+                <Box sx={{ width: "60%", display: "flex", gap: 1 }}>
+                  <Autocomplete
+                    sx={{ flex: 1 }}
+                    options={customers || []}
+                    getOptionLabel={(option) => option.firstName || ""}
+                    value={customer}
+                    onChange={(event, newValue) => {
+                      setCustomer(newValue);
+                      if (newValue) {
+                        setAddress1(newValue.addressLine1 || "");
+                        setAddress2(newValue.addressLine2 || "");
+                        setAddress3(newValue.addressLine3 || "");
+                      } else {
+                        setAddress1("");
+                        setAddress2("");
+                        setAddress3("");
+                      }
+                    }}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        fullWidth
+                        placeholder="Search Customer"
+                      />
+                    )}
+                  />
+                  <AddCustomerDialog fetchItems={fetchCustomers} showIconOnly={true} />
+                </Box>
               </Grid>
               <Grid item xs={12} display="flex" flexDirection="column" mt={1}>
                 <Grid
@@ -874,7 +915,8 @@ const InvoiceCreate = () => {
                     <Autocomplete
                       sx={{ width: "60%" }}
                       options={salesPersonList || []}
-                      getOptionLabel={(option) => option.name || ""}
+                      getOptionLabel={(option) => option?.name || option?.Name || ""}
+                      isOptionEqualToValue={(option, value) => option?.id === value?.id}
                       value={salesPerson}
                       onChange={(event, newValue) => {
                         setSalesPerson(newValue);
@@ -885,7 +927,6 @@ const InvoiceCreate = () => {
                           size="small"
                           fullWidth
                           placeholder="Select Salesperson"
-                          error={salesPersonError}
                         />
                       )}
                     />

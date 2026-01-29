@@ -19,8 +19,9 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import * as Yup from "yup";
 import BASE_URL from "Base/api";
+import IsAppSettingEnabled from "@/components/utils/IsAppSettingEnabled";
 
-const validationSchema = Yup.object().shape({
+const getValidationSchema = (isCustomerNICRequired) => Yup.object().shape({
   Title: Yup.string().required("Title is required"),
   FirstName: Yup.string().required("First Name is required"),
   LastName: Yup.string(),
@@ -29,11 +30,24 @@ const validationSchema = Yup.object().shape({
   AddressLine3: Yup.string(),
   Designation: Yup.string(),
   Company: Yup.string(),
-  NIC: Yup.string().matches(
-    /^\d{9}(\d{3})?$/,
-    "NIC must be either 9 or 12 digits long"
-  ).required("NIC is required"),
-  DateOfBirth: Yup.date(),
+  NIC: Yup.string().test(
+    "nic-format",
+    function (value) {
+      if (!value || value.trim() === "") {
+        // If NIC is required, show error; otherwise allow empty
+        if (isCustomerNICRequired) {
+          return this.createError({ message: "NIC is required" });
+        }
+        return true; // Allow empty NIC
+      }
+      // Validate format if value is provided
+      if (!/^\d{9}(\d{3})?$/.test(value)) {
+        return this.createError({ message: "NIC must be either 9 or 12 digits long" });
+      }
+      return true;
+    }
+  ),
+  DateOfBirth: Yup.date().nullable(),
   CustomerContactDetails: Yup.array().of(
     Yup.object().shape({
       ContactName: Yup.string().required("Contact Name is required"),
@@ -51,6 +65,8 @@ export default function AddCustomerDialog({ fetchItems, chartOfAccounts }) {
   const [open, setOpen] = React.useState(false);
   const [scroll, setScroll] = React.useState("paper");
   const [titleList, setTitleList] = useState([]);
+  const [currencyList, setCurrencyList] = useState([]);
+  const { data: isCustomerNICRequired } = IsAppSettingEnabled("IsCustomerNICRequired");
   const [contacts, setContacts] = useState([
     { ContactName: "", ContactNo: "", EmailAddress: "" },
   ]);
@@ -77,6 +93,36 @@ export default function AddCustomerDialog({ fetchItems, chartOfAccounts }) {
     }
   };
 
+  const fetchCurrencyList = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/Currency/GetAllCurrency?SkipCount=0&MaxResultCount=1000&Search=null`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch Currency List");
+      }
+
+      const data = await response.json();
+      // Extract currencies from paginated response
+      let currencies = [];
+      if (data.result && data.result.items) {
+        currencies = data.result.items;
+      } else if (Array.isArray(data.result)) {
+        currencies = data.result;
+      }
+      
+      // Filter only active currencies
+      setCurrencyList(currencies.filter(currency => currency.isActive !== false));
+    } catch (error) {
+      console.error("Error fetching Currency List:", error);
+    }
+  };
+
 
   const handleAddContact = () => {
     const newContact = { ContactName: "", ContactNo: "", EmailAddress: "" };
@@ -94,6 +140,7 @@ export default function AddCustomerDialog({ fetchItems, chartOfAccounts }) {
     setOpen(true);
     setScroll(scrollType);
     fetchTitleList();
+    fetchCurrencyList();
   };
 
   const handleClose = () => {
@@ -112,7 +159,8 @@ export default function AddCustomerDialog({ fetchItems, chartOfAccounts }) {
   }, [open]);
 
   const handleSubmit = (values) => {
-    values.DateOfBirth = birthdate ? birthdate : "1000-01-01";
+    values.NIC = values.NIC || "";
+    values.DateOfBirth = birthdate || null;
     values.LastName = values.LastName ? values.LastName : "-";
     const token = localStorage.getItem("token");
     fetch(`${BASE_URL}/Customer/CreateCustomer`, {
@@ -229,6 +277,7 @@ export default function AddCustomerDialog({ fetchItems, chartOfAccounts }) {
                 NIC: "",
                 DateOfBirth: "",
                 ReceivableAccount: null,
+                CurrencyId: null,
                 IsManufacture: false,
                 CustomerContactDetails: contacts.map(() => ({
                   ContactName: "",
@@ -236,7 +285,7 @@ export default function AddCustomerDialog({ fetchItems, chartOfAccounts }) {
                   ContactNo: "",
                 })),
               }}
-              validationSchema={validationSchema}
+              validationSchema={getValidationSchema(isCustomerNICRequired)}
               onSubmit={handleSubmit}
             >
               {({ errors, touched, values, setFieldValue }) => (
@@ -487,6 +536,42 @@ export default function AddCustomerDialog({ fetchItems, chartOfAccounts }) {
                                   chartOfAccounts.map((acc, index) => (
                                     <MenuItem key={index} value={acc.id}>
                                       {acc.code} - {acc.description}
+                                    </MenuItem>
+                                  ))
+                                )}
+                              </Field>
+                            </FormControl>
+                          </Grid>
+                          <Grid lg={6} item xs={12}>
+                            <Typography
+                              component="label"
+                              sx={{
+                                fontWeight: "500",
+                                fontSize: "14px",
+                                mb: "10px",
+                                display: "block",
+                              }}
+                            >
+                              Select Currency
+                            </Typography>
+                            <FormControl fullWidth>
+                              <Field
+                                as={TextField}
+                                select
+                                fullWidth
+                                name="CurrencyId"
+                                onChange={(e) => {
+                                  setFieldValue("CurrencyId", e.target.value);
+                                }}
+                              >
+                                {currencyList.length === 0 ? (
+                                  <MenuItem disabled>
+                                    No Currencies Available
+                                  </MenuItem>
+                                ) : (
+                                  currencyList.map((currency, index) => (
+                                    <MenuItem key={index} value={currency.id}>
+                                      {currency.code} - {currency.name}
                                     </MenuItem>
                                   ))
                                 )}

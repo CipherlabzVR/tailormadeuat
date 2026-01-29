@@ -10,6 +10,7 @@ import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { formatDate } from "@/components/utils/formatHelper";
 import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import useLoggedUserCompanyLetterhead from "@/hooks/useLoggedUserCompanyLetterhead";
 
 export default function CustomerInvoice() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export default function CustomerInvoice() {
   const [invoiceData, setInvoiceData] = useState(null);
   const [loadingInvoice, setLoadingInvoice] = useState(true);
   const [quoteData, setQuoteData] = useState(null);
+  const { letterheadImage } = useLoggedUserCompanyLetterhead();
 
   useEffect(() => {
     const fetchInvoiceData = async () => {
@@ -83,7 +85,7 @@ export default function CustomerInvoice() {
       const element = invoiceContentRef.current;
       const opt = {
         margin: 0,
-        filename: `Invoice_${invoiceData?.invoiceNo || invoiceNumber || "invoice"}.pdf`,
+        filename: `Payment_Plan_${invoiceData?.invoiceNo || invoiceNumber || "paymentplan"}.pdf`,
         image: { type: "jpeg", quality: 0.98 },
         html2canvas: { 
           scale: 2,
@@ -221,7 +223,9 @@ export default function CustomerInvoice() {
             marginBottom: { xs: 2, sm: 4 },
             position: "relative",
             backgroundColor: "white",
-            backgroundImage: { xs: "none", sm: "url('/images/quotation/cbassletter.jpg')" },
+            backgroundImage: letterheadImage 
+              ? { xs: "none", sm: `url('${letterheadImage}')` }
+              : { xs: "none", sm: "url('/images/quotation/cbassletter.jpg')" },
             backgroundSize: "cover",
             backgroundPosition: "center",
             backgroundRepeat: "no-repeat",
@@ -241,7 +245,7 @@ export default function CustomerInvoice() {
               }}
             >
               <Typography variant="body2" color="text.secondary">
-                Loading invoice...
+                Loading Payment Plan...
               </Typography>
             </Box>
           ) : invoiceData ? (
@@ -255,7 +259,7 @@ export default function CustomerInvoice() {
                   fontSize: { xs: "0.85rem", sm: "1.5rem", md: "2rem" },
                 }}
               >
-                INVOICE
+                PAYMENT PLAN
               </Typography>
 
               <Box
@@ -281,7 +285,7 @@ export default function CustomerInvoice() {
                     <strong>Quote No:</strong> {quoteData?.quoteNumber || "-"}
                   </Typography>
                   <Typography variant="body2" sx={{ mb: 1, fontSize: { xs: "0.55rem", sm: "0.875rem" } }}>
-                    <strong>Invoice No:</strong> {invoiceData.invoiceNo || invoiceNumber || "-"}
+                    <strong>Doc. No:</strong> {invoiceData.invoiceNo || invoiceNumber || "-"}
                   </Typography>
                   <Typography variant="body2" sx={{ mb: 1, fontSize: { xs: "0.55rem", sm: "0.875rem" } }}>
                     <strong>Date:</strong> {invoiceData.createdOn ? format(new Date(invoiceData.createdOn), "dd-MMM-yyyy") : currentDate}

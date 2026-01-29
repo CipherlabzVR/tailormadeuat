@@ -163,8 +163,10 @@ const fetchItems = async (inquiryId, optionId, windowType) => {
       ...patternItem,
       UnitCost: patternUCost,
       TotalCost: patternTotalCost,
+      Quantity: patternItem.quantity ?? patternQuantity,
       ApprovedUnitCost: patternUCost, // Copy to approved
       ApprovedTotalCost: patternTotalCost, // Copy to approved
+      ApprovedQuantity: patternQuantity, // Copy to approved
     } : null;
   
     const commissionRow = commissionItem ? {
@@ -180,6 +182,7 @@ const fetchItems = async (inquiryId, optionId, windowType) => {
         ...item,
         ApprovedUnitCost: item.unitCost, // Copy to approved
         ApprovedTotalCost: item.totalCost, // Copy to approved
+        ApprovedQuantity: item.quantity, // Copy to approved
       })),
     ];
   
@@ -299,8 +302,8 @@ const fetchItems = async (inquiryId, optionId, windowType) => {
           <TableHead>
             <TableRow>
               <TableCell>Description</TableCell>
-              <TableCell>Unit Cost</TableCell>
-              <TableCell>Qty</TableCell>
+              <TableCell align="right">Unit Cost</TableCell>
+              <TableCell align="right">Qty</TableCell>
               <TableCell align="right">Total Cost</TableCell>
             </TableRow>
           </TableHead>
@@ -313,17 +316,18 @@ const fetchItems = async (inquiryId, optionId, windowType) => {
                 <TableCell component="th" scope="row">
                   {item.itemName}
                 </TableCell>
-                <TableCell>
+                <TableCell align="right">
                   <input
                     value={item.unitCost ? item.unitCost : 0}
                     style={{
                       width: "60px",
                       border: "1px solid #e5e5e5",
+                      textAlign: "right",
                     }}
                     onChange={(e) => handleUnitCostChange(index, e.target.value)}
                   />
                 </TableCell>
-                <TableCell>{item.quantity ? item.quantity : 0}</TableCell>
+                <TableCell align="right">{item.quantity ? item.quantity : 0}</TableCell>
                 <TableCell align="right">
                   {item.totalCost ? item.totalCost.toFixed(2) : "0.00"}
                 </TableCell>
@@ -335,14 +339,15 @@ const fetchItems = async (inquiryId, optionId, windowType) => {
               <TableCell component="th" scope="row">
                 Pattern
               </TableCell>
-              <TableCell>{patternUCost}</TableCell>
-              <TableCell>{patternQuantity}</TableCell>
+              <TableCell align="right">{patternUCost}</TableCell>
+              <TableCell align="right">{patternQuantity}</TableCell>
               <TableCell align="right">
                 <input
                   value={patternTotalCost}
                   style={{
                     width: "60px",
                     border: "1px solid #e5e5e5",
+                    textAlign: "right",
                   }}
                   onChange={(e) => handlePatternTotalCostChange(e.target.value)}
                 />
@@ -354,14 +359,15 @@ const fetchItems = async (inquiryId, optionId, windowType) => {
               <TableCell component="th" scope="row">
                 Commission
               </TableCell>
-              <TableCell></TableCell>
-              <TableCell></TableCell>
+              <TableCell align="right"></TableCell>
+              <TableCell align="right"></TableCell>
               <TableCell align="right">
                 <input
                   value={commissionTotalCost}
                   style={{
                     width: "60px",
                     border: "1px solid #e5e5e5",
+                    textAlign: "right",
                   }}
                   onChange={(e) => handleCommissionTotalCostChange(e.target.value)}
                 />
@@ -393,6 +399,7 @@ const fetchItems = async (inquiryId, optionId, windowType) => {
                   style={{
                     width: "60px",
                     border: "1px solid #e5e5e5",
+                    textAlign: "right",
                   }}
                   onChange={(e) => handleProfitChange(e.target.value)}
                 />

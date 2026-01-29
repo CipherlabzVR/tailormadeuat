@@ -16,6 +16,9 @@ import Link from "next/link";
 import BASE_URL from "Base/api";
 import { ProjectNo } from "Base/catelogue";
 import GridViewIcon from "@mui/icons-material/GridView";
+import SettingsIcon from "@mui/icons-material/Settings";
+import ToggleOnIcon from "@mui/icons-material/ToggleOn";
+import ToggleOffIcon from "@mui/icons-material/ToggleOff";
 import { useRouter } from "next/router";
 import styles from "./TopNavbar.module.css";
 import { TopbarContext } from "../TopbarContext";
@@ -28,7 +31,7 @@ const TopNavbar = ({
 }) => {
   const [companyLogo, setCompanyLogo] = React.useState("");
   const router = useRouter();
-  const { activeButton: contextActiveButton, setActiveButton } =
+  const { activeButton: contextActiveButton, setActiveButton, hoverMode = false, setHoverMode } =
     React.useContext(TopbarContext);
   const [activeButton, setActiveButtonState] = React.useState(
     contextActiveButton || "quick-access"
@@ -140,9 +143,40 @@ const TopNavbar = ({
                     router.push("/");
                   }
                 }}
+                onMouseEnter={() => {
+                  // When hover mode is ON, open sidebar on hover
+                  if (hoverMode && showSidebar) {
+                    setActiveButtonState("menu");
+                    showSidebar();
+                    if (router.pathname !== "/") {
+                      router.push("/");
+                    }
+                  }
+                }}
                 sx={{ ml: 0.5, width: 40, height: 40 }}
               >
                 <i className="ri-align-left"></i>
+              </IconButton>
+            </Tooltip>
+
+            <Tooltip title={hoverMode ? "Hover Mode: ON" : "Hover Mode: OFF"} arrow>
+              <IconButton
+                size="sm"
+                edge="start"
+                color="inherit"
+                className={styles.actionButton}
+                onClick={() => {
+                  if (setHoverMode) {
+                    setHoverMode(!hoverMode);
+                  }
+                }}
+                sx={{ ml: 0.5, width: 40, height: 40 }}
+              >
+                {hoverMode ? (
+                  <ToggleOnIcon sx={{ color: "#757FEF", fontSize: 28 }} />
+                ) : (
+                  <ToggleOffIcon sx={{ color: "#818093", fontSize: 28 }} />
+                )}
               </IconButton>
             </Tooltip>
 
@@ -179,6 +213,23 @@ const TopNavbar = ({
 
               {/* CurrentDate */}
               <CurrentDate />
+
+              {/* Settings */}
+              <Tooltip title="Settings" arrow>
+                <IconButton
+                  size="small"
+                  edge="end"
+                  color="inherit"
+                  sx={{ width: 40, height: 40 }}
+                  className={styles.actionButton}
+                  onClick={() => {
+                    const event = new CustomEvent('openControlPanel');
+                    window.dispatchEvent(event);
+                  }}
+                >
+                  <SettingsIcon />
+                </IconButton>
+              </Tooltip>
 
               {/* Notification */}
               <Email />

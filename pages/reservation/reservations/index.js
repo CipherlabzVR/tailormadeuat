@@ -27,7 +27,7 @@ import RecreateConfirmation from "./RecreateConfirmation";
 
 export default function Reservation() {
   const cId = sessionStorage.getItem("category")
-  const { navigate, create, update, remove, print } = IsPermissionEnabled(cId);
+  const { navigate, create, update, remove, print, approve1 } = IsPermissionEnabled(cId);
   const { create: chargeSheetCreate } = IsPermissionEnabled(46);
   const { create: galleryCreate } = IsPermissionEnabled(44);
   const [resList, setResList] = useState([]);
@@ -36,31 +36,47 @@ export default function Reservation() {
   const [pageSize, setPageSize] = useState(10);
   const [totalCount, setTotalCount] = useState(0);
   const [tabIndex, setTabIndex] = useState(0);
+  const [appointmentType, setAppointmentType] = useState(0);
+  const [bridalType, setBridalType] = useState(0);
   const { data: docnumber } = getNext("14");
 
   const handleTabChange = (event, newValue) => {
     setTabIndex(newValue);
     setPage(1);
-    fetchResList(1, searchTerm, pageSize, newValue);
+    fetchResList(1, searchTerm, pageSize, newValue, appointmentType, bridalType);
+  };
+
+  const handleAppointmentTypeChange = (event) => {
+    const value = event.target.value;
+    setAppointmentType(value);
+    setPage(1);
+    fetchResList(1, searchTerm, pageSize, tabIndex, value, bridalType);
+  };
+
+  const handleBridalTypeChange = (event) => {
+    const value = event.target.value;
+    setBridalType(value);
+    setPage(1);
+    fetchResList(1, searchTerm, pageSize, tabIndex, appointmentType, value);
   };
 
   const handleSearchChange = (event) => {
     const value = event.target.value;
     setSearchTerm(value);
     setPage(1);
-    fetchResList(1, value, pageSize, tabIndex);
+    fetchResList(1, value, pageSize, tabIndex, appointmentType, bridalType);
   };
 
   const handlePageChange = (event, value) => {
     setPage(value);
-    fetchResList(value, searchTerm, pageSize, tabIndex);
+    fetchResList(value, searchTerm, pageSize, tabIndex, appointmentType, bridalType);
   };
 
   const handlePageSizeChange = (event) => {
     const newSize = event.target.value;
     setPageSize(newSize);
     setPage(1);
-    fetchResList(1, searchTerm, newSize, tabIndex);
+    fetchResList(1, searchTerm, newSize, tabIndex, appointmentType, bridalType);
   };
 
   const getReservationTypeByTab = (tab) => {
@@ -69,12 +85,12 @@ export default function Reservation() {
     return 5;
   };
 
-  const fetchResList = async (page = 1, search = "", size = pageSize, tab = tabIndex) => {
+  const fetchResList = async (page = 1, search = "", size = pageSize, tab = tabIndex, appointment = appointmentType, bridal = bridalType) => {
     try {
       const token = localStorage.getItem("token");
       const skip = (page - 1) * size;
       const reservationType = getReservationTypeByTab(tab);
-      const query = `${BASE_URL}/Reservation/GetAllReservationSkipAndTake?SkipCount=${skip}&MaxResultCount=${size}&Search=${search || "null"}&reservationType=${reservationType}`;
+      const query = `${BASE_URL}/Reservation/GetAllReservationSkipAndTake?SkipCount=${skip}&MaxResultCount=${size}&Search=${search || "null"}&reservationType=${reservationType}&appointmentType=${appointment}&bridalType=${bridal}`;
 
       const response = await fetch(query, {
         method: "GET",
@@ -113,7 +129,7 @@ export default function Reservation() {
   const defaultColSpan = 14;
   const tableColSpan = defaultColSpan + (tabIndex === 1 ? 1 : 0) - (tabIndex === 3 ? 3 : 0);
 
-  
+
   return (
     <>
       <ToastContainer />
@@ -142,8 +158,42 @@ export default function Reservation() {
             />
           </Search>
         </Grid>
-        <Grid item xs={12} lg={8} mb={1} display="flex" justifyContent="end" order={{ xs: 1, lg: 2 }}>
-          {create ? <AddReservation fetchItems={fetchResList} documentNo={docnumber} /> : ""}
+        <Grid item xs={6} lg={2} order={{ xs: 3, lg: 2 }}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Appointment Type</InputLabel>
+            <Select
+              value={appointmentType}
+              label="Appointment Type"
+              onChange={handleAppointmentTypeChange}
+            >
+              <MenuItem value={0}>All</MenuItem>
+              <MenuItem value={1}>First</MenuItem>
+              <MenuItem value={2}>Show Saree</MenuItem>
+              <MenuItem value={3}>Fabric & Design</MenuItem>
+              <MenuItem value={4}>Measurement</MenuItem>
+              <MenuItem value={5}>Fiton</MenuItem>
+              <MenuItem value={6}>Trial</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid item xs={6} lg={2} order={{ xs: 3, lg: 3 }}>
+          <FormControl fullWidth size="small">
+            <InputLabel>Bridal Type</InputLabel>
+            <Select
+              value={bridalType}
+              label="Bridal Type"
+              onChange={handleBridalTypeChange}
+            >
+              <MenuItem value={0}>All</MenuItem>
+              <MenuItem value={1}>Kandyan</MenuItem>
+              <MenuItem value={2}>Indian</MenuItem>
+              <MenuItem value={3}>Western</MenuItem>
+              <MenuItem value={4}>Hindu</MenuItem>
+            </Select>
+          </FormControl>
+        </Grid>
+        <Grid item xs={12} lg={4} mb={1} display="flex" justifyContent="end" order={{ xs: 1, lg: 3 }}>
+          {create ? <AddReservation fetchItems={fetchResList} documentNo={docnumber} approve1={approve1} /> : ""}
         </Grid>
         <Grid item xs={12} order={{ xs: 3, lg: 3 }}>
           <TableContainer component={Paper}>
@@ -151,8 +201,10 @@ export default function Reservation() {
               <TableHead>
                 <TableRow>
                   <TableCell>Doc. No</TableCell>
-                  <TableCell>Wedding&nbsp;Date</TableCell>
+                  <TableCell>Payment Code</TableCell>
+                  <TableCell>Payment Date</TableCell>                  
                   <TableCell>Event&nbsp;Type</TableCell>
+                  <TableCell>Wedding&nbsp;Date</TableCell>
                   <TableCell>Name</TableCell>
                   <TableCell>Groom&nbsp;Name</TableCell>
                   <TableCell>NIC/Passport No</TableCell>
@@ -163,7 +215,7 @@ export default function Reservation() {
                   {tabIndex !== 3 ? <TableCell>Next&nbsp;Appointment</TableCell> : null}
                   {tabIndex !== 3 ? <TableCell>Status</TableCell> : null}
                   <TableCell>Remark</TableCell>
-                  {tabIndex === 1 ? <TableCell>Canceled&nbsp;Reason</TableCell> : ""}
+                  {tabIndex === 1 ? <TableCell>Canceled&nbsp;Reason</TableCell> : ""}                  
                   <TableCell>Action</TableCell>
                 </TableRow>
               </TableHead>
@@ -178,8 +230,22 @@ export default function Reservation() {
                   filteredData.map((reservation, index) => (
                     <TableRow key={index} sx={{ background: reservation.status === 2 ? "#FFFECE" : "" }}>
                       <TableCell>{reservation.documentNo}</TableCell>
-                      <TableCell>{formatDate(reservation.reservationDate)}</TableCell>
+                      <TableCell>{reservation.paymentCode}</TableCell>
+                      <TableCell>{formatDate(reservation.initialPaymentDate)}</TableCell>                      
                       <TableCell>{getEventType(reservation.reservationFunctionType)}</TableCell>
+                      <TableCell>{formatDate(reservation.reservationDate)}
+                        <br />
+                        {reservation.reservationFunctionType === 3 ? (
+                          <Chip
+                            label={`HC : ${formatDate(reservation.homeComingDate)}`}
+                            size="small"
+                            variant="filled"
+                            sx={{ backgroundColor: '#FFF57E' }}
+                          />
+                        ) : (
+                          <></>
+                        )}
+                      </TableCell>
                       <TableCell>{reservation.customerName}</TableCell>
                       <TableCell>{reservation.groomName}</TableCell>
                       <TableCell>{reservation.nic}</TableCell>
@@ -206,15 +272,16 @@ export default function Reservation() {
                             </>
                           ) : (reservation.status === 3 ?
                             <Chip size="small" label="Canceled" color="error" /> : (reservation.status === 4 ? <Chip size="small" label="Complete" color="success" /> : <Chip size="small" label="Ongoing" color="primary" />)
-  
+
                           )}
                         </TableCell>
                       ) : null}
                       <TableCell>{reservation.reservationDetails.remark}</TableCell>
                       {tabIndex === 1 ? <TableCell>{reservation.canceledReason}</TableCell> : ""}
+                      
                       <TableCell>
                         <Box display="flex" gap={1}>
-                          {update && tabIndex == 0 ? <UpdateReservation reservation={reservation} fetchItems={fetchResList} /> : ""}
+                          {update && tabIndex == 0 ? <UpdateReservation reservation={reservation} fetchItems={fetchResList} approve1={approve1} /> : ""}
                           {galleryCreate ? <ReservationMedia id={reservation.id} /> : ""}
                           {tabIndex == 0 && remove ? <CancelConfirmation id={reservation.id} fetchItems={fetchResList} /> : ""}
                           {tabIndex == 1 && update ? <RecreateConfirmation id={reservation.id} fetchItems={fetchResList} /> : ""}

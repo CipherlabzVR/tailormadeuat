@@ -21,12 +21,13 @@ import { Catelogue } from "Base/catelogue";
 import ShareReports from "@/components/UIElements/Modal/Reports/ShareReports";
 import { Report } from "Base/report";
 import LocalPrintshopIcon from "@mui/icons-material/LocalPrintshop";
+import SendIcon from "@mui/icons-material/Send";
 import { useRouter } from "next/router";
 import BorderColorIcon from "@mui/icons-material/BorderColor";
-import AddIcon from "@mui/icons-material/Add";
 import RejectConfirmationById from "./reject";
 import ConfirmInovoiceById from "./confirm";
 import SentBack from "./sent-back";
+import BackToPending from "./back-to-pending";
 
 export default function ProformaList() {
     const router = useRouter();
@@ -214,11 +215,16 @@ export default function ProformaList() {
             if (response.ok) {
                 const data = await response.json();
                 if (data.result?.statusCode === 200 || data.result?.message) {
-                    // Refresh the current tab (Processing tab if called from WhatsApp, Pending if from Print)
-                    const currentTab = skipPrint ? 1 : 0;
-                    fetchQuotationList(1, searchTerm, pageSize, currentTab);
-                    // Only open print window if not skipped (i.e., when called from Print button)
-                    if (!skipPrint) {
+                    // If called from WhatsApp share (skipPrint=true), switch to Sent tab immediately
+                    if (skipPrint) {
+                        setTabValue(2); // Switch to Sent tab
+                        // Refresh Sent tab after a short delay to allow backend to update
+                        setTimeout(() => {
+                            fetchQuotationList(1, searchTerm, pageSize, 2);
+                        }, 300);
+                    } else {
+                        // Refresh the current tab (Pending tab)
+                        fetchQuotationList(1, searchTerm, pageSize, 0);
                         // Validate required values
                         if (!invoiceId || !Report || !InvoiceReportName) {
                             console.error("Missing required values for print:", { invoiceId, Report, InvoiceReportName });
@@ -229,13 +235,6 @@ export default function ProformaList() {
                         const invoiceReportLink = `/PrintDocumentsLocal?InitialCatalog=${Catelogue}&documentNumber=${invoiceId}&reportName=${InvoiceReportName}&warehouseId=${warehouseId || 0}&currentUser=${name || ''}`;
                         const fullUrl = `${Report}${invoiceReportLink}`;
                         window.open(fullUrl, '_blank');
-                    }
-                    // If called from Processing tab, switch to Sent tab after marking as sent
-                    if (skipPrint) {
-                        setTimeout(() => {
-                            setTabValue(2); // Switch to Sent tab
-                            fetchQuotationList(1, searchTerm, pageSize, 2);
-                        }, 500);
                     }
                 }
             }
@@ -447,13 +446,6 @@ export default function ProformaList() {
                                                     ) : (
                                                         <TableCell align="right">
                                                         <Box display="flex" gap={2} justifyContent="end" flexWrap="wrap">
-                                                                {create && tabValue === 0 ? (
-                                                                    <Tooltip title="Add New" placement="top">
-                                                                        <IconButton onClick={() => navigateToCreate(item)} aria-label="add" size="small">
-                                                                            <AddIcon color="primary" fontSize="medium" />
-                                                                        </IconButton>
-                                                                    </Tooltip>
-                                                                ) : ""}
                                                                 {update && tabValue === 0 ?
                                                                 <SentBack id={item.inquiryId} fetchItems={fetchQuotationList} />
                                                                 : ""}
@@ -476,28 +468,22 @@ export default function ProformaList() {
                                                                 </Tooltip>
                                                                 : ""}
 
-                                                            {/* WhatsApp / Print */}
+                                                            {/* Processing tab actions */}
                                                             <>
-                                                                {tabValue === 1 || tabValue === 2 ? (
+                                                                {/* Back to Pending button for Processing tab - appears first */}
+                                                                {tabValue === 1 ? (
+                                                                    <BackToPending id={item.id} fetchItems={() => fetchQuotationList(1, searchTerm, pageSize, 1)} />
+                                                                ) : ""}
+                                                                {tabValue === 1 ? (
                                                                     <ShareReports 
                                                                         url={whatsapp} 
                                                                         mobile={(item.sentWhatsappNumber && item.sentWhatsappNumber.trim() !== "") ? item.sentWhatsappNumber : (item.customerContactNo && item.customerContactNo.trim() !== "" ? item.customerContactNo : null)}
-                                                                        onSuccess={tabValue === 1 ? () => handleMarkAsSent(item.id, item.inquiryId, item.warehouseId, null, true) : undefined}
+                                                                        onSuccess={() => handleMarkAsSent(item.id, item.inquiryId, item.warehouseId, null, true)}
                                                                     />
                                                                 ) : ""}
-                                                                {print && tabValue !== 0 ?
+                                                                {print && tabValue !== 0 && tabValue !== 2 ?
                                                                     <Tooltip title="Print" placement="top">
-                                                                        {tabValue === 2 ? (
-                                                                            // For Sent tab, use direct link (already sent, no need to call API)
-                                                                            <a href={`${Report}${invoiceReportLink}`} target="_blank" rel="noopener noreferrer">
-                                                                                <IconButton
-                                                                                    aria-label="print"
-                                                                                    size="small"
-                                                                                >
-                                                                                    <LocalPrintshopIcon color="primary" fontSize="medium" />
-                                                                                </IconButton>
-                                                                            </a>
-                                                                        ) : tabValue === 3 ? (
+                                                                        {tabValue === 3 ? (
                                                                             // For Confirmed tab, open print then navigate to Tech Pack page
                                                                             <IconButton
                                                                                 aria-label="print"
@@ -512,17 +498,29 @@ export default function ProformaList() {
                                                                                 <LocalPrintshopIcon color="primary" fontSize="medium" />
                                                                             </IconButton>
                                                                         ) : (
-                                                                            // For Processing tab, use onClick to mark as sent
+                                                                            // For Processing tab, just open print (no status change - status changes only via WhatsApp)
                                                                             <IconButton
                                                                                 aria-label="print"
                                                                                 size="small"
-                                                                                onClick={(e) => handleMarkAsSent(item.id, item.inquiryId, item.warehouseId, e)}
+                                                                                onClick={() => window.open(`${Report}${invoiceReportLink}`, "_blank")}
                                                                             >
                                                                                 <LocalPrintshopIcon color="primary" fontSize="medium" />
                                                                             </IconButton>
                                                                         )}
                                                                     </Tooltip>
                                                                 : ""}
+                                                                {/* Manual Mark as Sent button for Processing tab */}
+                                                                {tabValue === 1 ? (
+                                                                    <Tooltip title="Mark as Sent" placement="top">
+                                                                        <IconButton
+                                                                            aria-label="mark-as-sent"
+                                                                            size="small"
+                                                                            onClick={() => handleMarkAsSent(item.id, item.inquiryId, item.warehouseId, null, true)}
+                                                                        >
+                                                                            <SendIcon color="success" fontSize="medium" />
+                                                                        </IconButton>
+                                                                    </Tooltip>
+                                                                ) : ""}
                                                             </>
 
                                                             {/* Sent tab actions (now tabValue === 2) */}

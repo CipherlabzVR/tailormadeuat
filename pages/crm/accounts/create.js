@@ -18,6 +18,7 @@ import Checkbox from "@mui/material/Checkbox";
 import BASE_URL from "Base/api";
 import { toast } from "react-toastify";
 import useAccountTypes from "../../../hooks/useAccountTypes";
+import { countries } from "../../../components/utils/countries";
 
 const initialFormValues = {
   accountName: "",
@@ -33,8 +34,11 @@ const initialFormValues = {
   addressLine2: "",
   addressLine3: "",
   postalCode: "",
+  state: "",
+  country: "",
   employeeCount: "",
   accountType: "",
+  currencyId: "",
   notes: "",
   isActive: true,
 };
@@ -43,10 +47,42 @@ export default function AddAccountModal({ onAccountCreated }) {
   const [open, setOpen] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [formValues, setFormValues] = React.useState(initialFormValues);
+  const [currencyList, setCurrencyList] = React.useState([]);
   const { accountTypes } = useAccountTypes();
+
+  const fetchCurrencyList = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/Currency/GetAllCurrency?SkipCount=0&MaxResultCount=1000&Search=null`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch Currency List");
+      }
+
+      const data = await response.json();
+      // Extract currencies from paginated response
+      let currencies = [];
+      if (data.result && data.result.items) {
+        currencies = data.result.items;
+      } else if (Array.isArray(data.result)) {
+        currencies = data.result;
+      }
+      
+      // Filter only active currencies
+      setCurrencyList(currencies.filter(currency => currency.isActive !== false));
+    } catch (error) {
+      console.error("Error fetching Currency List:", error);
+    }
+  };
 
   const handleOpen = () => {
     setOpen(true);
+    fetchCurrencyList();
   };
 
   const resetForm = () => {
@@ -114,6 +150,10 @@ export default function AddAccountModal({ onAccountCreated }) {
       return;
     }
 
+    // Construct verification link template - backend will append accountId after creation
+    const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+    const verificationLink = `${baseUrl}/verified`;
+
     const payload = {
       AccountName: formValues.accountName.trim(),
       Industry: formValues.industry.trim() || null,
@@ -128,11 +168,15 @@ export default function AddAccountModal({ onAccountCreated }) {
       AddressLine2: formValues.addressLine2.trim() || "",
       AddressLine3: formValues.addressLine3.trim() || "",
       PostalCode: formValues.postalCode.trim() || "",
+      State: formValues.state.trim() || "",
+      Country: formValues.country.trim() || "",
       AnnualRevenue: 0,
       EmployeeCount: parseDecimal(formValues.employeeCount),
       AccountType: Number(formValues.accountType),
+      CurrencyId: formValues.currencyId || null,
       Description: formValues.notes.trim() || "",
       IsActive: formValues.isActive,
+      VerificationLink: verificationLink,
     };
 
     try {
@@ -240,6 +284,29 @@ export default function AddAccountModal({ onAccountCreated }) {
               </FormControl>
             </Grid>
 
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Select Currency</InputLabel>
+                <Select
+                  value={formValues.currencyId}
+                  label="Select Currency"
+                  onChange={handleFieldChange("currencyId")}
+                >
+                  {currencyList.length === 0 ? (
+                    <MenuItem disabled>
+                      No Currencies Available
+                    </MenuItem>
+                  ) : (
+                    currencyList.map((currency) => (
+                      <MenuItem key={currency.id} value={currency.id}>
+                        {currency.code} - {currency.name}
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
+            </Grid>
+
             <Grid item xs={12}>
               <Typography variant="h6" fontWeight={600}>
                 Contact Information
@@ -339,7 +406,7 @@ export default function AddAccountModal({ onAccountCreated }) {
 
             <Grid item xs={12} lg={6}>
               <TextField
-                label="Address Line 3"
+                label="City"
                 fullWidth
                 size="small"
                 value={formValues.addressLine3}
@@ -355,6 +422,33 @@ export default function AddAccountModal({ onAccountCreated }) {
                 value={formValues.postalCode}
                 onChange={handleFieldChange("postalCode")}
               />
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <TextField
+                label="State/Province"
+                fullWidth
+                size="small"
+                value={formValues.state}
+                onChange={handleFieldChange("state")}
+              />
+            </Grid>
+
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Country</InputLabel>
+                <Select
+                  value={formValues.country}
+                  label="Country"
+                  onChange={handleFieldChange("country")}
+                >
+                  {countries.map((country) => (
+                    <MenuItem key={country.code} value={country.label}>
+                      {country.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </Grid>
 
             <Grid item xs={12}>

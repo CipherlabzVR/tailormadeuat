@@ -130,7 +130,13 @@ export default function ViewSentQuotations({ item, update, fetchItems }) {
                         <UpdateConfirmQuotation fetchItems={fetchSentQuotList} type={9} sentQuotId={q.id} isConfirm={false} />
                       </Box>
                     )}
-                    {q.projectStatusType !== 1 && (
+                    {q.projectStatusType === 9 && (
+                      <Box display="flex" justifyContent="end" gap={1}>
+                        <Button variant="outlined" onClick={() => navigateToEdit(q.inquiryId, q.optionId)}>Edit</Button>
+                        <Chip sx={{ color: "#fff", background: projectStatusColor(q.projectStatusType) }} label={projectStatusType(q.projectStatusType)} />
+                      </Box>
+                    )}
+                    {q.projectStatusType !== 1 && q.projectStatusType !== 9 && (
                       <Chip sx={{ color: "#fff", background: projectStatusColor(q.projectStatusType) }} label={projectStatusType(q.projectStatusType)} />
                     )}
                   </Box>

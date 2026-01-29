@@ -165,6 +165,7 @@ function MyApp({ Component, pageProps }) {
     }
     hasLoggedOutRef.current = true;
     localStorage.clear();
+    sessionStorage.removeItem("holidayGreetingShown");
     setToken(null);
     router.replace("/authentication/sign-in/");
   }, [router]);
@@ -368,7 +369,7 @@ function MyApp({ Component, pageProps }) {
   }
 
   // Exclude customer/quote and customer/invoice pages from layout and token check
-  const noLayoutRoutes = ["/crm/customer/quote", "/crm/customer/invoice"];
+  const noLayoutRoutes = ["/crm/customer/quote", "/crm/customer/invoice", "/verified", "/userverified"];
   const shouldUseLayout = !noLayoutRoutes.includes(router.pathname);
   const shouldCheckToken = !noLayoutRoutes.includes(router.pathname);
 

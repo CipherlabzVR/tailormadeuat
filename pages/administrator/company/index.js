@@ -12,7 +12,13 @@ import {
   TablePagination,
   TableRow,
   Typography,
+  IconButton,
+  Tooltip,
+  Modal,
+  Box,
 } from "@mui/material";
+import ImageIcon from "@mui/icons-material/Image";
+import CloseIcon from "@mui/icons-material/Close";
 import { Search, StyledInputBase } from "@/styles/main/search-styles";
 import BASE_URL from "Base/api";
 import { ToastContainer } from "react-toastify";
@@ -21,6 +27,7 @@ import AddCompany from "./AddCompany";
 import EditCompany from "./EditCompany";
 import AccessDenied from "@/components/UIElements/Permission/AccessDenied";
 import IsPermissionEnabled from "@/components/utils/IsPermissionEnabled";
+import { formatCurrency } from "@/components/utils/formatHelper";
 
 export default function Company() {
   const cId = sessionStorage.getItem("category")
@@ -29,7 +36,19 @@ export default function Company() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [searchTerm, setSearchTerm] = useState("");
+  const [letterheadModalOpen, setLetterheadModalOpen] = useState(false);
+  const [selectedLetterheadImage, setSelectedLetterheadImage] = useState("");
   const controller = "Company/DeleteCompany";
+
+  const handleOpenLetterheadModal = (imageUrl) => {
+    setSelectedLetterheadImage(imageUrl);
+    setLetterheadModalOpen(true);
+  };
+
+  const handleCloseLetterheadModal = () => {
+    setLetterheadModalOpen(false);
+    setSelectedLetterheadImage("");
+  };
 
   const fetchCompanies = async () => {
     try {
@@ -72,6 +91,50 @@ export default function Company() {
   const filteredData = companies.filter((item) =>
     item.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getBillingTypeName = (billingType) => {
+    if (billingType === null || billingType === undefined) return "-";
+    const type = Number(billingType);
+    switch (type) {
+      case 1:
+        return "Monthly";
+      case 2:
+        return "Yearly";
+      default:
+        return "-";
+    }
+  };
+
+  const getMonthName = (month) => {
+    const months = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+    const monthNum = Number(month);
+    if (monthNum >= 1 && monthNum <= 12) {
+      return months[monthNum - 1];
+    }
+    return "";
+  };
+
+  const formatBillingDate = (company) => {
+    if (!company.renewalDate) return "-";
+    
+    const billingType = Number(company.billingType);
+    const renewalDate = Number(company.renewalDate);
+    
+    if (billingType === 1) {
+      return `Every month ${renewalDate}`;
+    } else if (billingType === 2) {
+      const monthName = getMonthName(company.renewalMonth);
+      if (monthName) {
+        return `${monthName} ${renewalDate}`;
+      }
+      return `${renewalDate}`;
+    }
+    
+    return "-";
+  };
 
   const paginatedData = filteredData.slice(
     page * rowsPerPage,
@@ -132,7 +195,11 @@ export default function Company() {
                   <TableCell>Code</TableCell>
                   <TableCell>Contact Person</TableCell>
                   <TableCell>Contact No</TableCell>
+                  <TableCell>Hosting Fee</TableCell>
+                  <TableCell>Billing Date</TableCell>
+                  <TableCell>Billing Type</TableCell>
                   <TableCell>Description</TableCell>
+                  <TableCell>Letter Head</TableCell>
                   <TableCell align="right">Action</TableCell>
                 </TableRow>
               </TableHead>
@@ -141,7 +208,7 @@ export default function Company() {
                   <TableRow
                     sx={{ "&:last-child td, &:last-child th": { border: 0 } }}
                   >
-                    <TableCell component="th" scope="row" colSpan={7}>
+                    <TableCell component="th" scope="row" colSpan={8}>
                       <Typography color="error">
                         No Companies Available
                       </Typography>
@@ -162,7 +229,27 @@ export default function Company() {
                       <TableCell>
                         {company.contactNumber}
                       </TableCell>
+                      <TableCell>{formatCurrency(company.hostingFee)}</TableCell>
+                      <TableCell>{formatBillingDate(company)}</TableCell>
+                      <TableCell>{getBillingTypeName(company.billingType)}</TableCell>
                       <TableCell>{company.description}</TableCell>
+                      <TableCell>
+                        {company.letterHeadImage ? (
+                          <Tooltip title="View Letterhead">
+                            <IconButton
+                              size="small"
+                              color="primary"
+                              onClick={() => handleOpenLetterheadModal(company.letterHeadImage)}
+                            >
+                              <ImageIcon fontSize="inherit" />
+                            </IconButton>
+                          </Tooltip>
+                        ) : (
+                          <Typography variant="body2" color="text.secondary">
+                            -
+                          </Typography>
+                        )}
+                      </TableCell>
                       <TableCell align="right" display="flex" gap={2}>
                         {update ? <EditCompany
                           item={company}
@@ -191,6 +278,61 @@ export default function Company() {
           </TableContainer>
         </Grid>
       </Grid>
+
+      <Modal
+        open={letterheadModalOpen}
+        onClose={handleCloseLetterheadModal}
+        aria-labelledby="letterhead-modal-title"
+        aria-describedby="letterhead-modal-description"
+      >
+        <Box
+          sx={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            width: { xs: "90%", sm: "80%", md: "70%", lg: "60%" },
+            maxWidth: "900px",
+            maxHeight: "90vh",
+            bgcolor: "background.paper",
+            boxShadow: 24,
+            borderRadius: 2,
+            p: 2,
+            overflow: "auto",
+          }}
+          className="bg-black"
+        >
+          <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            <Typography variant="h6" component="h2">
+              Letterhead Image
+            </Typography>
+            <IconButton onClick={handleCloseLetterheadModal} color="error">
+              <CloseIcon />
+            </IconButton>
+          </Box>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "center",
+              width: "100%",
+              minHeight: "400px",
+            }}
+          >
+            {selectedLetterheadImage && (
+              <img
+                src={selectedLetterheadImage}
+                alt="Letterhead"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "70vh",
+                  objectFit: "contain",
+                }}
+              />
+            )}
+          </Box>
+        </Box>
+      </Modal>
     </>
   );
 }

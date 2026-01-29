@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Checkbox, FormControlLabel, Grid, Typography, Tabs, Tab, IconButton } from "@mui/material";
+import { Checkbox, FormControlLabel, Grid, Typography, Tabs, Tab, IconButton, Select, InputLabel } from "@mui/material";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Modal from "@mui/material/Modal";
@@ -14,6 +14,646 @@ import "react-toastify/dist/ReactToastify.css";
 import { ChartOfAccountType } from "@/components/types/types";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import DeleteIcon from "@mui/icons-material/Delete";
+import AddIcon from "@mui/icons-material/Add";
+
+// Controlled Category Modal Component - Using existing AddCategory component logic
+const CreateCategoryModal = ({ open, onClose, fetchItems, IsEcommerceWebSiteAvailable }) => {
+  const [image, setImage] = useState("");
+  const [file, setFile] = useState(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 100);
+    } else {
+      setImage("");
+      setFile(null);
+    }
+  }, [open]);
+
+  const handleSubmit = (values) => {
+    const formData = new FormData();
+    formData.append("Name", values.Name);
+    formData.append("IsActive", values.IsActive);
+    formData.append("IsWebView", values.IsWebView);
+    formData.append("File", file ? file : null);
+
+    fetch(`${BASE_URL}/Category/CreateCategory`, {
+      method: "POST",
+      body: formData,
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem("token")}`
+      },
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.statusCode == 200) {
+          toast.success(data.message);
+          onClose();
+          if (fetchItems) fetchItems();
+        } else {
+          toast.error(data.message);
+        }
+      })
+      .catch((error) => {
+        toast.error(error.message || '');
+      });
+  };
+
+  if (!open) return null;
+
+  return (
+    <Modal open={open} onClose={onClose}>
+      <Box sx={style} className="bg-black">
+        <Formik
+          initialValues={{
+            Name: "",
+            IsActive: true,
+            IsWebView: false,
+          }}
+          validationSchema={Yup.object().shape({
+            Name: Yup.string().required("Category Name is required"),
+          })}
+          onSubmit={handleSubmit}
+        >
+          {({ errors, touched, values, setFieldValue }) => (
+            <Form>
+              <Box mt={2}>
+                <Grid container>
+                  <Grid item xs={12}>
+                    <Typography variant="h5" sx={{ fontWeight: "500", mb: "12px" }}>
+                      Add Category
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12}>
+                    <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
+                      Category Name
+                    </Typography>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      inputRef={inputRef}
+                      name="Name"
+                      error={touched.Name && Boolean(errors.Name)}
+                      helperText={touched.Name && errors.Name}
+                    />
+                  </Grid>
+                  <Grid item xs={12} lg={6} mt={2}>
+                    <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
+                      Category Image
+                    </Typography>
+                    <Button
+                      component="label"
+                      variant="contained"
+                      tabIndex={-1}
+                      startIcon={<CloudUploadIcon />}
+                    >
+                      Upload Image
+                      <input
+                        type="file"
+                        hidden
+                        onChange={(event) => {
+                          var file = event.target.files[0];
+                          setFile(file);
+                          setImage(URL.createObjectURL(file));
+                        }}
+                        multiple
+                      />
+                    </Button>
+                  </Grid>
+                  {image != "" && (
+                    <Grid item xs={12} lg={6} my={1} display="flex" justifyContent="center">
+                      <Box sx={{ p: 2, border: '1px solid #e5e5e5', borderRadius: '10px' }}>
+                        <Box sx={{ width: 150, height: 150, backgroundSize: 'cover', backgroundImage: `url(${image})` }}></Box>
+                      </Box>
+                    </Grid>
+                  )}
+                  <Grid item xs={12}>
+                    <Grid container spacing={1}>
+                      <Grid item xs={12} lg={6} mt={1}>
+                        <FormControlLabel
+                          control={
+                            <Field
+                              as={Checkbox}
+                              name="IsActive"
+                              checked={values.IsActive}
+                              onChange={() => setFieldValue("IsActive", !values.IsActive)}
+                            />
+                          }
+                          label="Active"
+                        />
+                      </Grid>
+                      {IsEcommerceWebSiteAvailable && (
+                        <Grid item xs={12} lg={6} mt={1}>
+                          <FormControlLabel
+                            control={
+                              <Field
+                                as={Checkbox}
+                                name="IsWebView"
+                                checked={values.IsWebView}
+                                onChange={() => setFieldValue("IsWebView", !values.IsWebView)}
+                              />
+                            }
+                            label="Show in web"
+                          />
+                        </Grid>
+                      )}
+                    </Grid>
+                  </Grid>
+                </Grid>
+              </Box>
+              <Box display="flex" justifyContent="space-between">
+                <Button type="submit" variant="contained" onClick={onClose} color="error" sx={{ mt: 2, textTransform: "capitalize", borderRadius: "8px", fontWeight: "500", fontSize: "13px", padding: "12px 20px", color: "#fff !important" }}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="contained" sx={{ mt: 2, textTransform: "capitalize", borderRadius: "8px", fontWeight: "500", fontSize: "13px", padding: "12px 20px", color: "#fff !important" }}>
+                  Save
+                </Button>
+              </Box>
+            </Form>
+          )}
+        </Formik>
+      </Box>
+    </Modal>
+  );
+};
+
+// Controlled SubCategory Modal Component
+const CreateSubCategoryModal = ({ open, onClose, fetchItems, IsEcommerceWebSiteAvailable, preselectedCategoryId }) => {
+  const [categoryList, setCategoryList] = useState([]);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      fetchCategoryList();
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [open]);
+
+  const fetchCategoryList = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/Category/GetAllCategory`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+        },
+      });
+      if (!response.ok) throw new Error("Failed");
+      const data = await response.json();
+      setCategoryList(data.result);
+    } catch (error) {
+      console.error("Error fetching:", error);
+    }
+  };
+
+  const handleSubmit = (values) => {
+    fetch(`${BASE_URL}/SubCategory/CreateSubCategory`, {
+      method: "POST",
+      body: JSON.stringify(values),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.statusCode == 200) {
+          toast.success(data.message);
+          onClose();
+          if (fetchItems) fetchItems(data.result?.id);
+        } else {
+          toast.error(data.message);
+        }
+      })
+      .catch((error) => {
+        toast.error(error.message || "");
+      });
+  };
+
+  if (!open) return null;
+
+  return (
+    <Modal open={open} onClose={onClose}>
+      <Box sx={style} className="bg-black">
+        <Formik
+          initialValues={{
+            Name: "",
+            CategoryId: preselectedCategoryId || "",
+            IsActive: true,
+            IsWebView: false,
+          }}
+          validationSchema={Yup.object().shape({
+            Name: Yup.string().required("Sub Category Name is required"),
+            CategoryId: Yup.number().required("Category is required"),
+          })}
+          onSubmit={handleSubmit}
+        >
+          {({ errors, touched, values, setFieldValue }) => (
+            <Form>
+              <Box mt={2}>
+                <Grid container>
+                  <Grid item xs={12} mt={1}>
+                    <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
+                      Category
+                    </Typography>
+                    <FormControl fullWidth>
+                      <InputLabel id="category-select-label">Category</InputLabel>
+                      <Field
+                        as={Select}
+                        labelId="category-select-label"
+                        id="category-select"
+                        name="CategoryId"
+                        label="Category"
+                        value={values.CategoryId}
+                        onChange={(e) => setFieldValue("CategoryId", e.target.value)}
+                      >
+                        {categoryList.length === 0 ? (
+                          <MenuItem disabled color="error">No Categories Available</MenuItem>
+                        ) : (
+                          categoryList.map((category, index) => (
+                            <MenuItem disabled={!category.isActive} key={index} value={category.id}>
+                              {category.name} {!category.isActive && <span className="dangerBadge">Inactive</span>}
+                            </MenuItem>
+                          ))
+                        )}
+                      </Field>
+                      {touched.CategoryId && Boolean(errors.CategoryId) && (
+                        <Typography variant="caption" color="error">{errors.CategoryId}</Typography>
+                      )}
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} mt={1}>
+                    <Typography as="h5" sx={{ fontWeight: "500", fontSize: "14px", mb: "12px" }}>
+                      Sub Category Name
+                    </Typography>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      name="Name"
+                      inputRef={inputRef}
+                      error={touched.Name && Boolean(errors.Name)}
+                      helperText={touched.Name && errors.Name}
+                    />
+                  </Grid>
+                  <Grid item xs={12} lg={6} mt={1}>
+                    <FormControlLabel
+                      control={
+                        <Field
+                          as={Checkbox}
+                          name="IsActive"
+                          checked={values.IsActive}
+                          onChange={() => setFieldValue("IsActive", !values.IsActive)}
+                        />
+                      }
+                      label="Active"
+                    />
+                  </Grid>
+                  {IsEcommerceWebSiteAvailable && (
+                    <Grid item xs={12} lg={6} mt={1}>
+                      <FormControlLabel
+                        control={
+                          <Field
+                            as={Checkbox}
+                            name="IsWebView"
+                            checked={values.IsWebView}
+                            onChange={() => setFieldValue("IsWebView", !values.IsWebView)}
+                          />
+                        }
+                        label="Show in web"
+                      />
+                    </Grid>
+                  )}
+                </Grid>
+              </Box>
+              <Box display="flex" justifyContent="space-between">
+                <Button type="submit" variant="contained" onClick={onClose} color="error" sx={{ mt: 2, textTransform: "capitalize", borderRadius: "8px", fontWeight: "500", fontSize: "13px", padding: "12px 20px", color: "#fff !important" }}>
+                  Cancel
+                </Button>
+                <Button type="submit" variant="contained" sx={{ mt: 2, textTransform: "capitalize", borderRadius: "8px", fontWeight: "500", fontSize: "13px", padding: "12px 20px", color: "#fff !important" }}>
+                  Save
+                </Button>
+              </Box>
+            </Form>
+          )}
+        </Formik>
+      </Box>
+    </Modal>
+  );
+};
+
+// Controlled Supplier Modal Component
+const CreateSupplierModal = ({ open, onClose, fetchItems, isPOSSystem, banks, isBankRequired, chartOfAccounts }) => {
+  const [selectedBank, setSelectedBank] = useState();
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [open]);
+
+  const handleSubmit = (values) => {
+    if (!selectedBank && isBankRequired) {
+      toast.warning("Please Select Bank");
+      return;
+    }
+    const payload = {
+      ...values,
+      BankId: selectedBank?.id || null,
+      BankName: selectedBank?.name || "",
+      BankAccountUserName: selectedBank?.accountUsername || "",
+      BankAccountNo: selectedBank?.accountNo || "",
+    };
+
+    fetch(`${BASE_URL}/Supplier/CreateSupplier`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.statusCode == 200) {
+          toast.success(data.message);
+          onClose();
+          if (fetchItems) fetchItems(data.result?.id);
+        } else {
+          toast.error(data.message);
+        }
+      })
+      .catch((error) => {
+        toast.error(error.message || "");
+      });
+  };
+
+  if (!open) return null;
+
+  return (
+    <Modal open={open} onClose={onClose}>
+      <Box sx={style} className="bg-black">
+        <Formik
+          initialValues={{
+            Name: "",
+            MobileNo: "",
+            PayableAccount: null,
+            IsActive: true,
+          }}
+          validationSchema={Yup.object().shape({
+            Name: Yup.string().required("Name is required"),
+            MobileNo: Yup.string().required("Mobile No is required"),
+          })}
+          onSubmit={handleSubmit}
+        >
+          {({ errors, touched, values, setFieldValue }) => (
+            <Form>
+              <Box mt={2}>
+                <Grid spacing={1} container>
+                  <Grid item xs={12}>
+                    <Typography variant="h5" sx={{ fontWeight: "500", mb: "12px" }}>
+                      Add Supplier
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} mt={1}>
+                    <Typography sx={{ fontWeight: "500", fontSize: "14px", mb: "5px" }}>
+                      Supplier Name
+                    </Typography>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      inputRef={inputRef}
+                      name="Name"
+                      size="small"
+                      error={touched.Name && Boolean(errors.Name)}
+                      helperText={touched.Name && errors.Name}
+                    />
+                  </Grid>
+                  <Grid item xs={12} mt={1}>
+                    <Typography sx={{ fontWeight: "500", fontSize: "14px", mb: "5px" }}>
+                      Mobile No
+                    </Typography>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      name="MobileNo"
+                      size="small"
+                      error={touched.MobileNo && Boolean(errors.MobileNo)}
+                      helperText={touched.MobileNo && errors.MobileNo}
+                    />
+                  </Grid>
+                  {isPOSSystem && (
+                    <Grid item xs={12} mt={1}>
+                      <Typography sx={{ fontWeight: 500, fontSize: "14px", mb: "5px" }}>Email</Typography>
+                      <Field as={TextField} fullWidth name="Email" size="small" />
+                    </Grid>
+                  )}
+                  {isBankRequired && (
+                    <Grid item xs={12} mt={1}>
+                      <Typography sx={{ fontWeight: 500, fontSize: "14px", mb: "5px" }}>Bank</Typography>
+                      <Select
+                        size="small"
+                        fullWidth
+                        onChange={(e) => {
+                          const selected = banks.find((bank) => bank.id === e.target.value);
+                          setSelectedBank(selected);
+                        }}
+                      >
+                        {banks.length === 0 ? (
+                          <MenuItem disabled>No Data Available</MenuItem>
+                        ) : (
+                          banks.map((bank, index) => (
+                            <MenuItem key={index} value={bank.id}>
+                              {bank.name} - {bank.accountUsername} ({bank.accountNo})
+                            </MenuItem>
+                          ))
+                        )}
+                      </Select>
+                    </Grid>
+                  )}
+                  <Grid item xs={12} mt={1}>
+                    <Typography sx={{ fontWeight: "500", fontSize: "14px", mb: "5px" }}>
+                      Payable Account
+                    </Typography>
+                    <FormControl fullWidth>
+                      <Field
+                        as={TextField}
+                        select
+                        fullWidth
+                        name="PayableAccount"
+                        size="small"
+                        onChange={(e) => setFieldValue("PayableAccount", e.target.value)}
+                      >
+                        {chartOfAccounts.length === 0 ? (
+                          <MenuItem disabled>No Accounts Available</MenuItem>
+                        ) : (
+                          chartOfAccounts.map((acc, index) => (
+                            <MenuItem key={index} value={acc.id}>
+                              {acc.code} - {acc.description}
+                            </MenuItem>
+                          ))
+                        )}
+                      </Field>
+                    </FormControl>
+                  </Grid>
+                  <Grid item xs={12} mt={1}>
+                    <FormControlLabel
+                      control={
+                        <Field
+                          as={Checkbox}
+                          name="IsActive"
+                          checked={values.IsActive}
+                          onChange={() => setFieldValue("IsActive", !values.IsActive)}
+                        />
+                      }
+                      label="Active"
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+              <Box display="flex" justifyContent="space-between">
+                <Button variant="contained" color="error" onClick={onClose} size="small">Cancel</Button>
+                <Button type="submit" variant="contained" size="small">Save</Button>
+              </Box>
+            </Form>
+          )}
+        </Formik>
+      </Box>
+    </Modal>
+  );
+};
+
+// Controlled UOM Modal Component
+const CreateUOMModal = ({ open, onClose, fetchItems }) => {
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      setTimeout(() => {
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [open]);
+
+  const handleSubmit = (values) => {
+    fetch(`${BASE_URL}/UnitOfMeasure/CreateUnitOfMeasure`, {
+      method: "POST",
+      body: JSON.stringify(values),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.statusCode == 200) {
+          toast.success(data.message);
+          onClose();
+          if (fetchItems) fetchItems(data.result?.id);
+        } else {
+          toast.error(data.message);
+        }
+      })
+      .catch((error) => {
+        toast.error(error.message || "");
+      });
+  };
+
+  if (!open) return null;
+
+  return (
+    <Modal open={open} onClose={onClose}>
+      <Box sx={style} className="bg-black">
+        <Formik
+          initialValues={{
+            Description: "",
+            Name: "",
+            Value: 0,
+            IsActive: true,
+          }}
+          validationSchema={Yup.object().shape({
+            Description: Yup.string().required("Description is required"),
+            Name: Yup.string().required("Name is required"),
+          })}
+          onSubmit={handleSubmit}
+        >
+          {({ errors, touched, values, setFieldValue }) => (
+            <Form>
+              <Box>
+                <Grid spacing={1} container>
+                  <Grid item xs={12}>
+                    <Typography variant="h5" sx={{ fontWeight: "500", mb: "12px" }}>
+                      Add Unit of Measure
+                    </Typography>
+                  </Grid>
+                  <Grid item xs={12} mt={1}>
+                    <Typography sx={{ fontWeight: "500", fontSize: "14px", mb: "5px" }}>Name</Typography>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      name="Name"
+                      size="small"
+                      inputRef={inputRef}
+                      error={touched.Name && Boolean(errors.Name)}
+                      helperText={touched.Name && errors.Name}
+                    />
+                  </Grid>
+                  <Grid item xs={12} mt={1}>
+                    <Typography sx={{ fontWeight: "500", fontSize: "14px", mb: "5px" }}>Description</Typography>
+                    <Field
+                      as={TextField}
+                      fullWidth
+                      name="Description"
+                      size="small"
+                      error={touched.Description && Boolean(errors.Description)}
+                      helperText={touched.Description && errors.Description}
+                    />
+                  </Grid>
+                  <Grid item xs={12} mt={1}>
+                    <Typography sx={{ fontWeight: "500", fontSize: "14px", mb: "5px" }}>Value</Typography>
+                    <Field as={TextField} fullWidth type="number" name="Value" size="small" />
+                  </Grid>
+                  <Grid item xs={12} mt={1}>
+                    <FormControlLabel
+                      control={
+                        <Field
+                          as={Checkbox}
+                          name="IsActive"
+                          checked={values.IsActive}
+                          onChange={() => setFieldValue("IsActive", !values.IsActive)}
+                        />
+                      }
+                      label="Active"
+                    />
+                  </Grid>
+                </Grid>
+              </Box>
+              <Box display="flex" mt={2} justifyContent="space-between">
+                <Button variant="contained" color="error" onClick={onClose} size="small">Cancel</Button>
+                <Button type="submit" variant="contained" size="small">Save</Button>
+              </Box>
+            </Form>
+          )}
+        </Formik>
+      </Box>
+    </Modal>
+  );
+};
 
 const style = {
   position: "absolute",
@@ -43,10 +683,16 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
   const [categoryList, setCategoryList] = useState([]);
   const [subCategoryList, setSubCategoryList] = useState([]);
   const [supplierList, setSupplierList] = useState([]);
+  const [currencyList, setCurrencyList] = useState([]);
   const inputRef = useRef(null);
   const [tabValue, setTabValue] = useState(0);
   const [selectedImage, setSelectedImage] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
+  const [createCategoryOpen, setCreateCategoryOpen] = useState(false);
+  const [createSubCategoryOpen, setCreateSubCategoryOpen] = useState(false);
+  const [createSupplierOpen, setCreateSupplierOpen] = useState(false);
+  const [createUOMOpen, setCreateUOMOpen] = useState(false);
+  const [uomList, setUomList] = useState(uoms || []);
 
   useEffect(() => {
     if (open) {
@@ -149,11 +795,77 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
       console.error("Error:", error);
     }
   };
+  const fetchCurrencyList = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/Currency/GetAllCurrency?SkipCount=0&MaxResultCount=1000&Search=null`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch Currency List");
+      }
+
+      const data = await response.json();
+      console.log("Currency API Response:", data);
+      
+      // Extract currencies from paginated response
+      // Response structure: { statusCode: 200, message: "...", result: { items: [...], totalCount: ... } }
+      let currencies = [];
+      if (data.result && data.result.items) {
+        currencies = data.result.items;
+      } else if (Array.isArray(data.result)) {
+        currencies = data.result;
+      }
+      
+      console.log("Extracted currencies:", currencies);
+      
+      // Filter only active currencies (isActive !== false means isActive === true or isActive === null/undefined)
+      const activeCurrencies = currencies.filter(currency => currency.isActive !== false);
+      console.log("Active currencies:", activeCurrencies);
+      setCurrencyList(activeCurrencies);
+    } catch (error) {
+      console.error("Error fetching Currency List:", error);
+    }
+  };
 
   useEffect(() => {
     fetchCategoryList();
     fetchSupplierList();
+    fetchCurrencyList();
+    fetchUOMList();
   }, []);
+
+  useEffect(() => {
+    // Update UOM list when prop changes
+    if (uoms && uoms.length > 0) {
+      setUomList(uoms);
+    }
+  }, [uoms]);
+
+  const fetchUOMList = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/UnitOfMeasure/GetAllUnitOfMeasure`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch UOM list");
+      }
+
+      const data = await response.json();
+      setUomList(data.result || []);
+    } catch (error) {
+      console.error("Error fetching UOM list:", error);
+    }
+  };
 
   const handleCategorySelect = (event) => {
     setSelectedCat(event.target.value);
@@ -178,6 +890,31 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
     setSelectedFile(null);
   };
 
+  const handleCategoryCreated = async () => {
+    await fetchCategoryList();
+  };
+
+  const handleSubCategoryCreated = async (setFieldValue, createdId) => {
+    await fetchSubCategoryList(selectedCat);
+    if (createdId && setFieldValue) {
+      setFieldValue("SubCategoryId", createdId);
+    }
+  };
+
+  const handleSupplierCreated = async (setFieldValue, createdId) => {
+    await fetchSupplierList();
+    if (createdId && setFieldValue) {
+      setFieldValue("Supplier", createdId);
+    }
+  };
+
+  const handleUOMCreated = async (setFieldValue, createdId) => {
+    await fetchUOMList();
+    if (createdId && setFieldValue) {
+      setFieldValue("UOM", createdId);
+    }
+  };
+
   const handleSubmit = (values) => {
     if (values.IsWebView && values.AveragePrice === null) {
       toast.warning("Please enter the average price for web view.");
@@ -194,6 +931,9 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
     formData.append("SubCategoryId", values.SubCategoryId);
     formData.append("Supplier", values.Supplier);
     formData.append("UOM", values.UOM);
+    if (values.CurrencyId) {
+      formData.append("CurrencyId", values.CurrencyId);
+    }
     if (values.Barcode !== undefined && values.Barcode !== null && values.Barcode !== "") {
       formData.append("Barcode", values.Barcode);
     }
@@ -253,6 +993,7 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
               SubCategoryId: "",
               Supplier: "",
               UOM: "",
+              CurrencyId: "",
               Barcode: null,
               CostAccount: null,
               AssetsAccount: null,
@@ -266,7 +1007,10 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
             validationSchema={validationSchema}
             onSubmit={handleSubmit}
           >
-            {({ errors, touched, values, setFieldValue, resetForm }) => (
+            {({ errors, touched, values, setFieldValue, resetForm }) => {
+              // Store setFieldValue in component scope for modal handlers
+              window.currentSetFieldValue = setFieldValue;
+              return (
               <Form>
                 <Grid container>
                   <Grid item mb={2} xs={12}>
@@ -338,18 +1082,19 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
                           >
                             Category
                           </Typography>
-                          <FormControl fullWidth>
-                            <Field
-                              as={TextField}
-                              select
-                              fullWidth
-                              name="CategoryId"
-                              size="small"
-                              onChange={(e) => {
-                                setFieldValue("CategoryId", e.target.value);
-                                handleCategorySelect(e);
-                              }}
-                            >
+                          <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
+                            <FormControl fullWidth>
+                              <Field
+                                as={TextField}
+                                select
+                                fullWidth
+                                name="CategoryId"
+                                size="small"
+                                onChange={(e) => {
+                                  setFieldValue("CategoryId", e.target.value);
+                                  handleCategorySelect(e);
+                                }}
+                              >
                               {categoryList.length === 0 ? (
                                 <MenuItem disabled color="error">
                                   No Categories Available
@@ -361,13 +1106,22 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
                                   </MenuItem>
                                 ))
                               )}
-                            </Field>
-                            {touched.CategoryId && Boolean(errors.CategoryId) && (
-                              <Typography variant="caption" color="error">
-                                {errors.CategoryId}
-                              </Typography>
-                            )}
-                          </FormControl>
+                              </Field>
+                              {touched.CategoryId && Boolean(errors.CategoryId) && (
+                                <Typography variant="caption" color="error">
+                                  {errors.CategoryId}
+                                </Typography>
+                              )}
+                            </FormControl>
+                            <IconButton
+                              size="small"
+                              onClick={() => setCreateCategoryOpen(true)}
+                              sx={{ mt: 0.5 }}
+                              color="primary"
+                            >
+                              <AddIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
                         </Grid>
                         <Grid item xs={12} lg={6} mt={1}>
                           <Typography
@@ -379,17 +1133,18 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
                           >
                             Sub Category
                           </Typography>
-                          <FormControl fullWidth>
-                            <Field
-                              as={TextField}
-                              select
-                              fullWidth
-                              name="SubCategoryId"
-                              size="small"
-                              onChange={(e) => {
-                                setFieldValue("SubCategoryId", e.target.value);
-                              }}
-                            >
+                          <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
+                            <FormControl fullWidth>
+                              <Field
+                                as={TextField}
+                                select
+                                fullWidth
+                                name="SubCategoryId"
+                                size="small"
+                                onChange={(e) => {
+                                  setFieldValue("SubCategoryId", e.target.value);
+                                }}
+                              >
                               {!selectedCat ? (
                                 <MenuItem disabled>
                                   Please Select Category First
@@ -405,14 +1160,25 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
                                   </MenuItem>
                                 ))
                               )}
-                            </Field>
-                            {touched.SubCategoryId &&
-                              Boolean(errors.SubCategoryId) && (
-                                <Typography variant="caption" color="error">
-                                  {errors.SubCategoryId}
-                                </Typography>
-                              )}
-                          </FormControl>
+                              </Field>
+                              {touched.SubCategoryId &&
+                                Boolean(errors.SubCategoryId) && (
+                                  <Typography variant="caption" color="error">
+                                    {errors.SubCategoryId}
+                                  </Typography>
+                                )}
+                            </FormControl>
+                            {selectedCat && (
+                              <IconButton
+                                size="small"
+                                onClick={() => setCreateSubCategoryOpen(true)}
+                                sx={{ mt: 0.5 }}
+                                color="primary"
+                              >
+                                <AddIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                          </Box>
                         </Grid>
                         <Grid item xs={12} lg={6} mt={1}>
                           <Typography
@@ -424,17 +1190,18 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
                           >
                             Supplier
                           </Typography>
-                          <FormControl fullWidth>
-                            <Field
-                              as={TextField}
-                              select
-                              fullWidth
-                              name="Supplier"
-                              size="small"
-                              onChange={(e) => {
-                                setFieldValue("Supplier", e.target.value);
-                              }}
-                            >
+                          <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
+                            <FormControl fullWidth>
+                              <Field
+                                as={TextField}
+                                select
+                                fullWidth
+                                name="Supplier"
+                                size="small"
+                                onChange={(e) => {
+                                  setFieldValue("Supplier", e.target.value);
+                                }}
+                              >
                               {supplierList.length === 0 ? (
                                 <MenuItem disabled>
                                   No Suppliers Available
@@ -446,13 +1213,22 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
                                   </MenuItem>
                                 ))
                               )}
-                            </Field>
-                            {touched.Supplier && Boolean(errors.Supplier) && (
-                              <Typography variant="caption" color="error">
-                                {errors.Supplier}
-                              </Typography>
-                            )}
-                          </FormControl>
+                              </Field>
+                              {touched.Supplier && Boolean(errors.Supplier) && (
+                                <Typography variant="caption" color="error">
+                                  {errors.Supplier}
+                                </Typography>
+                              )}
+                            </FormControl>
+                            <IconButton
+                              size="small"
+                              onClick={() => setCreateSupplierOpen(true)}
+                              sx={{ mt: 0.5 }}
+                              color="primary"
+                            >
+                              <AddIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
                         </Grid>
                         {isPOSSystem && (
                           <>
@@ -533,18 +1309,19 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
                           >
                             Unit of Measure
                           </Typography>
-                          <FormControl fullWidth>
-                            <Field
-                              as={TextField}
-                              select
-                              fullWidth
-                              name="UOM"
-                              size="small"
-                            >
-                              {uoms.filter(uom => uom.isActive).length === 0 ? (
+                          <Box sx={{ display: "flex", gap: 1, alignItems: "flex-start" }}>
+                            <FormControl fullWidth>
+                              <Field
+                                as={TextField}
+                                select
+                                fullWidth
+                                name="UOM"
+                                size="small"
+                              >
+                              {uomList.filter(uom => uom.isActive).length === 0 ? (
                                 <MenuItem disabled>No Active UOM Available</MenuItem>
                               ) : (
-                                uoms
+                                uomList
                                   .filter(uom => uom.isActive)
                                   .map((uom, index) => (
                                     <MenuItem key={index} value={uom.id}>
@@ -553,13 +1330,56 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
                                   ))
                               )
                               }
-
+                              </Field>
+                              {touched.UOM && Boolean(errors.UOM) && (
+                                <Typography variant="caption" color="error">
+                                  {errors.UOM}
+                                </Typography>
+                              )}
+                            </FormControl>
+                            <IconButton
+                              size="small"
+                              onClick={() => setCreateUOMOpen(true)}
+                              sx={{ mt: 0.5 }}
+                              color="primary"
+                            >
+                              <AddIcon fontSize="small" />
+                            </IconButton>
+                          </Box>
+                        </Grid>
+                        <Grid item xs={12} lg={6} mt={1}>
+                          <Typography
+                            sx={{
+                              fontWeight: "500",
+                              fontSize: "14px",
+                              mb: "5px",
+                            }}
+                          >
+                            Select Currency
+                          </Typography>
+                          <FormControl fullWidth>
+                            <Field
+                              as={TextField}
+                              select
+                              fullWidth
+                              name="CurrencyId"
+                              size="small"
+                              onChange={(e) => {
+                                setFieldValue("CurrencyId", e.target.value);
+                              }}
+                            >
+                              {currencyList.length === 0 ? (
+                                <MenuItem disabled>
+                                  No Currencies Available
+                                </MenuItem>
+                              ) : (
+                                currencyList.map((currency, index) => (
+                                  <MenuItem key={index} value={currency.id}>
+                                    {currency.code} - {currency.name}
+                                  </MenuItem>
+                                ))
+                              )}
                             </Field>
-                            {touched.UOM && Boolean(errors.UOM) && (
-                              <Typography variant="caption" color="error">
-                                {errors.UOM}
-                              </Typography>
-                            )}
                           </FormControl>
                         </Grid>
                         <Grid item xs={12} lg={6} mt={1}>
@@ -896,10 +1716,54 @@ export default function AddItems({ fetchItems, isPOSSystem, uoms, isGarmentSyste
                   </Grid>
                 </Grid>
               </Form>
-            )}
+            );
+            }}
           </Formik>
         </Box>
       </Modal>
+
+      {/* Create Category Modal - Using existing component */}
+      {createCategoryOpen && (
+        <CreateCategoryModal
+          open={createCategoryOpen}
+          onClose={() => setCreateCategoryOpen(false)}
+          fetchItems={handleCategoryCreated}
+          IsEcommerceWebSiteAvailable={IsEcommerceWebSiteAvailable}
+        />
+      )}
+
+      {/* Create SubCategory Modal - Using existing component */}
+      {createSubCategoryOpen && (
+        <CreateSubCategoryModal
+          open={createSubCategoryOpen}
+          onClose={() => setCreateSubCategoryOpen(false)}
+          fetchItems={(createdId) => handleSubCategoryCreated(window.currentSetFieldValue, createdId)}
+          IsEcommerceWebSiteAvailable={IsEcommerceWebSiteAvailable}
+          preselectedCategoryId={selectedCat}
+        />
+      )}
+
+      {/* Create Supplier Modal - Using existing component */}
+      {createSupplierOpen && (
+        <CreateSupplierModal
+          open={createSupplierOpen}
+          onClose={() => setCreateSupplierOpen(false)}
+          fetchItems={(createdId) => handleSupplierCreated(window.currentSetFieldValue, createdId)}
+          isPOSSystem={isPOSSystem}
+          banks={[]}
+          isBankRequired={false}
+          chartOfAccounts={chartOfAccounts}
+        />
+      )}
+
+      {/* Create UOM Modal - Using existing component */}
+      {createUOMOpen && (
+        <CreateUOMModal
+          open={createUOMOpen}
+          onClose={() => setCreateUOMOpen(false)}
+          fetchItems={(createdId) => handleUOMCreated(window.currentSetFieldValue, createdId)}
+        />
+      )}
     </>
   );
 }

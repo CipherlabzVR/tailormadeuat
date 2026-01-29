@@ -86,16 +86,39 @@ const styles = StyleSheet.create({
     marginBottom: "5px",
     marginLeft: "40px",
   },
+  tableContainer: {
+    border: "1px solid black",
+  },
+  tableRow: {
+    flexDirection: "row",
+    minHeight: "25px",
+  },
+  tableHeaderRow: {
+    flexDirection: "row",
+    minHeight: "25px",
+    borderBottom: "1px solid black",
+  },
   tablecell: {
     fontSize: "12px",
-    border: "1px solid black",
     padding: "5px",
+    borderRight: "1px solid black",
+    justifyContent: "center",
+  },
+  tablecellLast: {
+    fontSize: "12px",
+    padding: "5px",
+    justifyContent: "center",
   },
   tablecell2: {
     fontSize: "12px",
-    border: "1px solid black",
     padding: "5px",
-    borderTop: "none",
+    borderRight: "1px solid black",
+    justifyContent: "center",
+  },
+  tablecell2Last: {
+    fontSize: "12px",
+    padding: "5px",
+    justifyContent: "center",
   },
   contact: {
     fontSize: "12px",
@@ -117,6 +140,22 @@ const styles = StyleSheet.create({
     marginRight: "85px",
     // fontFamily: "CustomFont",
   },
+  pointsContainer: {
+    flexDirection: "row",
+    marginLeft: "40px",
+    marginRight: "85px",
+    marginBottom: "8px",
+  },
+  pointNumber: {
+    fontSize: "12px",
+    fontWeight: "bold",
+    width: "20px",
+    flexShrink: 0,
+  },
+  pointText: {
+    fontSize: "12px",
+    flex: 1,
+  },
   highlight: {
     color: "red",
   },
@@ -136,6 +175,36 @@ function formatDateTime(date) {
   );
 }
 
+// Format number with thousand separators for quotation PDF
+function formatNumberWithSeparator(value) {
+  if (value === null || value === undefined) return "0";
+  const num = Number(value);
+  if (isNaN(num)) return "0";
+  return num.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+// Get embellishment name from type
+function getEmbellishmentName(type) {
+  switch (type) {
+    case 1:
+      return "EMBROIDER";
+    case 2:
+      return "SUBLIMATION";
+    case 3:
+      return "Screen Print";
+    case 4:
+      return "DTF";
+    default:
+      return "";
+  }
+}
+
+// Format multiple embellishments with comma separator
+function formatEmbellishments(types) {
+  if (!types || types.length === 0) return "-";
+  return types.map(type => getEmbellishmentName(type)).filter(name => name).join(", ");
+}
+
 
 export default function ViewQuotation({
   quotDetails,
@@ -153,7 +222,7 @@ export default function ViewQuotation({
   const today = new Date();
   const [open, setOpen] = useState(false);
   const [fabs, setFabs] = useState([]);
-  const [doc, setDoc] = useState();
+  const [docs, setDocs] = useState([]);
   const [shareURL, setShareURL] = useState(url);
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);
@@ -247,10 +316,9 @@ export default function ViewQuotation({
       const filteredData = data.result.filter(
         (item) => !excluded.includes(item.documentSubContentType)
       );
-      const firstResult = filteredData.length > 0 ? filteredData[0] : null;
-      if (firstResult) {
-        setDoc(firstResult.documentSubContentType);
-      }
+      // Get unique document types for embellishments
+      const uniqueTypes = [...new Set(filteredData.map(item => item.documentSubContentType))];
+      setDocs(uniqueTypes);
     } catch (error) {
       console.error("Error:", error);
     }
@@ -268,6 +336,7 @@ export default function ViewQuotation({
   };
 
   const handleShareNow = async () => {
+    setLoading(true);
     const cus = quotDetails.customerDetails;
 
     const data = {
@@ -331,8 +400,6 @@ export default function ViewQuotation({
       setOpen(false);
 
       try {
-        setLoading(true);
-
         const res = await fetch(`${BASE_URL}/Inquiry/CreateSentQuotation`, {
           method: "POST",
           headers: {
@@ -374,6 +441,7 @@ export default function ViewQuotation({
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      setLoading(false);
     } else {
       const messengerLink =
         "https://www.facebook.com/dialog/share?app_id=YourAppID&href=" +
@@ -385,6 +453,7 @@ export default function ViewQuotation({
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      setLoading(false);
     }
   };
 
@@ -456,108 +525,115 @@ export default function ViewQuotation({
           </Text>
           <View
             style={{
-              flexDirection: "row",
+              ...styles.tableContainer,
               marginTop: "10px",
               marginLeft: "40px",
-              marginRight: "85px",
+              marginRight: "100px",
             }}
           >
-            <View style={{ flexGrow: 1 }}>
-              <Text style={styles.tablecell}>QTY</Text>
-              <Text style={styles.tablecell2}>
-                {quotDetails.apprvedTotalUnits || quotDetails.totalUnits}
-              </Text>
+            {/* Header Row */}
+            <View style={styles.tableHeaderRow}>
+              <View style={{ ...styles.tablecell, width: "40px" }}>
+                <Text>QTY</Text>
+              </View>
+              <View style={{ ...styles.tablecell, width: "55px" }}>
+                <Text>Item</Text>
+              </View>
+              <View style={{ ...styles.tablecell, width: "80px" }}>
+                <Text>Material</Text>
+              </View>
+              <View style={{ ...styles.tablecell, flex: 1 }}>
+                <Text>Emblishment</Text>
+              </View>
+              <View style={{ ...styles.tablecell, width: "65px", textAlign: "right" }}>
+                <Text style={{ textAlign: "right" }}>Unit Price (LKR)</Text>
+              </View>
+              <View style={{ ...styles.tablecellLast, width: "65px" }}>
+                <Text style={{ textAlign: "right" }}>Amount (LKR)</Text>
+              </View>
             </View>
-            <View style={{ flexGrow: 1 }}>
-              <Text
-                style={{ ...styles.tablecell, borderLeft: 0, borderRight: 0 }}
-              >
-                Item
-              </Text>
-              <Text
-                style={{ ...styles.tablecell2, borderLeft: 0, borderRight: 0 }}
-              >
-                {windowType}
-              </Text>
-            </View>
-            <View style={{ flexGrow: 1 }}>
-              <Text style={styles.tablecell}>Material</Text>
-              <Text style={styles.tablecell2}>
-                {fabs.length === 0
-                  ? "-"
-                  : fabs.map((fab, index) => (
-                    <React.Fragment key={index}>
-                      {fab.fabricName}
-                      {index < fabs.length - 1 ? ", " : ""}
-                    </React.Fragment>
-                  ))}
-              </Text>
-            </View>
-            <View style={{ flexGrow: 1 }}>
-              <Text
-                style={{ ...styles.tablecell, borderLeft: 0, borderRight: 0 }}
-              >
-                Emblishment
-              </Text>
-              <Text
-                style={{ ...styles.tablecell2, borderLeft: 0, borderRight: 0 }}
-              >
-                <DocSubType type={doc} />
-              </Text>
-            </View>
-            <View style={{ flexGrow: 1 }}>
-              <Text style={styles.tablecell}>Unit Price (LKR)</Text>
-              <Text style={styles.tablecell2}>
-                {quotDetails.apprvedSellingPrice}
-              </Text>
-            </View>
-            <View style={{ flexGrow: 1 }}>
-              <Text style={{ ...styles.tablecell, borderLeft: 0 }}>
-                Amount (LKR)
-              </Text>
-              <Text style={{ ...styles.tablecell2, borderLeft: 0 }}>
-                {quotDetails.apprvedRevanue}
-              </Text>
+            {/* Data Row */}
+            <View style={styles.tableRow}>
+              <View style={{ ...styles.tablecell2, width: "40px" }}>
+                <Text>{formatNumberWithSeparator(quotDetails.apprvedTotalUnits || quotDetails.totalUnits)}</Text>
+              </View>
+              <View style={{ ...styles.tablecell2, width: "55px" }}>
+                <Text>{windowType}</Text>
+              </View>
+              <View style={{ ...styles.tablecell2, width: "80px" }}>
+                <Text>
+                  {fabs.length === 0
+                    ? "-"
+                    : fabs.map((fab, index) => (
+                      <React.Fragment key={index}>
+                        {fab.fabricName}
+                        {index < fabs.length - 1 ? ", " : ""}
+                      </React.Fragment>
+                    ))}
+                </Text>
+              </View>
+              <View style={{ ...styles.tablecell2, flex: 1 }}>
+                <Text>{formatEmbellishments(docs)}</Text>
+              </View>
+              <View style={{ ...styles.tablecell2, width: "65px" }}>
+                <Text style={{ textAlign: "right" }}>{formatNumberWithSeparator(quotDetails.apprvedSellingPrice)}</Text>
+              </View>
+              <View style={{ ...styles.tablecell2Last, width: "65px" }}>
+                <Text style={{ textAlign: "right" }}>{formatNumberWithSeparator(quotDetails.apprvedRevanue)}</Text>
+              </View>
             </View>
           </View>
 
           <Text style={styles.heading}>Terms & Conditions</Text>
           {selectedOption === "1" ? (
-            <Text style={styles.points}>
-              1. {percentage}% advance payment with the confirmation of the
-              order & balance is due on prior to collection.
-            </Text>
+            <View style={styles.pointsContainer}>
+              <Text style={styles.pointNumber}>1.</Text>
+              <Text style={styles.pointText}>
+                {percentage}% advance payment with the confirmation of the order & balance is due on prior to collection.
+              </Text>
+            </View>
           ) : selectedOption === "2" ? (
-            <Text style={styles.points}>
-              1. {percentage}% advance payment with the confirmation of the
-              order & balance is due within {termDay} days credit after the
-              delivery.
-            </Text>
+            <View style={styles.pointsContainer}>
+              <Text style={styles.pointNumber}>1.</Text>
+              <Text style={styles.pointText}>
+                {percentage}% advance payment with the confirmation of the order & balance is due within {termDay} days credit after the delivery.
+              </Text>
+            </View>
           ) : selectedOption === "3" ? (
-            <Text style={styles.points}>
-              1. Purchase Order (PO) with the confirmation of the order &
-              payment is due within {termDay} days credit after the delivery.
-            </Text>
+            <View style={styles.pointsContainer}>
+              <Text style={styles.pointNumber}>1.</Text>
+              <Text style={styles.pointText}>
+                Purchase Order (PO) with the confirmation of the order & payment is due within {termDay} days credit after the delivery.
+              </Text>
+            </View>
           ) : (
             ""
           )}
 
-          <Text style={styles.points}>
-            2. This quotation is valid {validDate} days from {startDate}
-          </Text>
-          <Text style={styles.points}>
-            3. The above mentioned prices are given by calculating for an
-            average size ratio, if they doesn't match with our calculations the
-            prices might get differ.
-          </Text>
-          <Text style={styles.points}>
-            4. To handover the order on your required date the order must be
-            placed {handoverDate} working days prior to the date of delivery.
-          </Text>
-          <Text style={styles.points}>
-            5. Please be kind enough to issue the cheques for the payment
-            regarding this order to the following account.
-          </Text>
+          <View style={styles.pointsContainer}>
+            <Text style={styles.pointNumber}>2.</Text>
+            <Text style={styles.pointText}>
+              This quotation is valid {validDate} days from {startDate}
+            </Text>
+          </View>
+          <View style={styles.pointsContainer}>
+            <Text style={styles.pointNumber}>3.</Text>
+            <Text style={styles.pointText}>
+              The above mentioned prices are given by calculating for an average size ratio, if they doesn't match with our calculations the prices might get differ.
+            </Text>
+          </View>
+          <View style={styles.pointsContainer}>
+            <Text style={styles.pointNumber}>4.</Text>
+            <Text style={styles.pointText}>
+              To handover the order on your required date the order must be placed {handoverDate} working days prior to the date of delivery.
+            </Text>
+          </View>
+          <View style={styles.pointsContainer}>
+            <Text style={styles.pointNumber}>5.</Text>
+            <Text style={styles.pointText}>
+              Please be kind enough to issue the cheques for the payment regarding this order to the following account.
+            </Text>
+          </View>
 
           <View style={{ marginTop: "10px" }}>
             <Text style={styles.add}>Tailor Made apparels,</Text>
